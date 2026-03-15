@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Dark Theme (Default) ─── */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-app: #0a0f1c;
+  --bg-sidebar: rgba(15, 23, 42, 0.5);
+  --bg-panel: #0d1326;
+  --bg-card: rgba(15, 23, 42, 0.3);
+  --bg-input: #0f172a;
+  --bg-tree: #0f172a;
+  --bg-tree-header: rgba(30, 41, 59, 0.5);
+  --bg-hover: rgba(30, 41, 59, 0.5);
+  --bg-active: rgba(16, 185, 129, 0.1);
+
+  --border-default: rgba(51, 65, 85, 0.5);
+  --border-subtle: rgba(51, 65, 85, 0.3);
+  --border-tree-line: rgba(71, 85, 105, 0.4);
+
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-accent: #34d399;
+  --text-inverse: #0f172a;
+
+  --accent: #10b981;
+  --accent-hover: #34d399;
+  --accent-muted: rgba(16, 185, 129, 0.2);
+}
+
+/* ─── Light Theme ─── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-app: #f8fafc;
+  --bg-sidebar: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-card: #f1f5f9;
+  --bg-input: #ffffff;
+  --bg-tree: #ffffff;
+  --bg-tree-header: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --bg-active: rgba(16, 185, 129, 0.08);
+
+  --border-default: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --border-tree-line: #cbd5e1;
+
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-accent: #059669;
+  --text-inverse: #ffffff;
+
+  --accent: #059669;
+  --accent-hover: #047857;
+  --accent-muted: rgba(5, 150, 105, 0.15);
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+}
+
+#app {
+  width: 100%;
+}
