@@ -1,10 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ConfigForm } from './ConfigForm';
 import { GitTab } from './GitTab';
 import { Settings, GitBranch } from 'lucide-react';
+import { useProjectStore } from '../store/useProjectStore';
+import type { ProjectConfig } from '../store/useProjectStore';
 
 export function ProjectWorkspace() {
     const [activeTab, setActiveTab] = useState<'git' | 'config'>('git');
+    const { projects, selectedProjectId } = useProjectStore();
+    const existingProject = projects.find(p => p.id === selectedProjectId);
+
+    const [formData, setFormData] = useState<ProjectConfig>({
+        id: '', name: '', path: '', environments: [], hooks: []
+    });
+
+    useEffect(() => {
+        if (existingProject) setFormData(existingProject);
+    }, [existingProject]);
 
     const tabStyle = (isActive: boolean) => ({
         borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
@@ -34,7 +46,7 @@ export function ProjectWorkspace() {
 
             {/* Tab Content */}
             <div className="flex-1 overflow-y-auto min-h-0">
-                {activeTab === 'git' ? <GitTab /> : <ConfigForm />}
+                {activeTab === 'git' ? <GitTab /> : <ConfigForm formData={formData} setFormData={setFormData} />}
             </div>
         </div>
     );

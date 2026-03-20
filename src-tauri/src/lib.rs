@@ -1,7 +1,9 @@
 mod config;
+mod crypto;
 mod git;
 mod version;
 mod commands;
+mod stats;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -36,8 +38,10 @@ pub fn run() {
             commands::delete_tag_cmd,
             commands::cherry_pick_cmd,
             commands::fetch_all_cmd,
+            commands::fetch_branch_cmd,
             commands::get_commit_files_cmd,
             commands::get_file_diff_cmd,
+            commands::get_file_content_at_commit_cmd,
             commands::get_status_files_cmd,
             commands::stage_file_cmd,
             commands::unstage_file_cmd,
@@ -50,7 +54,26 @@ pub fn run() {
             commands::open_in_explorer_cmd,
             commands::open_in_vscode_cmd,
             commands::discard_file_cmd,
-            commands::discard_all_cmd
+            commands::discard_all_cmd,
+            config::export_settings_cmd,
+            config::import_settings_cmd,
+            // Stats commands
+            stats::get_contributor_stats_cmd,
+            stats::get_commit_heatmap_cmd,
+            stats::get_active_hours_cmd,
+            stats::get_branch_lifecycle_cmd,
+            stats::get_code_churn_cmd,
+            stats::get_commit_sizes_cmd,
+            stats::get_smart_alerts_cmd,
+            stats::get_team_activity_cmd,
+            // Conflict resolver commands
+            commands::check_merge_state_cmd,
+            commands::get_conflicted_files_cmd,
+            commands::get_conflict_content_cmd,
+            commands::get_ours_version_cmd,
+            commands::get_theirs_version_cmd,
+            commands::resolve_conflict_cmd,
+            commands::abort_merge_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,4 +1,4 @@
-import { FolderGit2, Plus, TerminalSquare, Moon, Sun } from 'lucide-react';
+import { FolderGit2, Plus, Moon, Sun } from 'lucide-react';
 import { useProjectStore } from '../store/useProjectStore';
 import { useTheme } from '../context/ThemeContext';
 import { clsx } from 'clsx';
@@ -11,9 +11,9 @@ export function ProjectList() {
     return (
         <div className="w-64 flex flex-col h-full overflow-hidden" style={{ backgroundColor: 'var(--bg-sidebar)', borderRight: '1px solid var(--border-default)' }}>
             <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-default)' }}>
-                <div className="flex items-center gap-2 font-medium font-mono" style={{ color: 'var(--text-accent)' }}>
-                    <TerminalSquare className="w-5 h-5" />
-                    <span>Deploy.exe</span>
+                <div className="flex items-center gap-2.5 font-medium font-mono" style={{ color: 'var(--text-accent)' }}>
+                    <img src="/logo.png" alt="ReizGit" className="w-8 h-8 rounded-lg object-contain filter drop-shadow-sm" />
+                    <span className="text-xl font-bold tracking-wider">ReizGit</span>
                 </div>
                 <div className="flex items-center gap-1">
                     <button

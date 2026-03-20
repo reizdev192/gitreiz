@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '../store/useProjectStore';
 import { X, RefreshCw, Loader2, CalendarDays, Users, TrendingUp, Clock, Calendar, CalendarCheck, CalendarRange } from 'lucide-react';
+import { useEscClose } from '../hooks/useEscClose';
 
 interface CommitInfo {
     hash: string;
@@ -58,7 +59,10 @@ function getDateRange(tab: TabKey): { start: Date; end: Date } {
 }
 
 export function DashboardPanel({ onClose }: DashboardPanelProps) {
-    const { projects, selectedProjectId, gitStateVersion } = useProjectStore();
+    useEscClose(onClose);
+    const projects = useProjectStore(s => s.projects);
+    const selectedProjectId = useProjectStore(s => s.selectedProjectId);
+    const gitStateVersion = useProjectStore(s => s.gitStateVersion);
     const project = projects.find(p => p.id === selectedProjectId);
 
     const [allCommits, setAllCommits] = useState<CommitInfo[]>([]);

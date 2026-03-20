@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '../store/useProjectStore';
 import { useI18n } from '../i18n/useI18n';
+import { useConfirmStore } from '../store/useConfirmStore';
 import { GitCommitHorizontal, ChevronDown, Copy, Tag, GitBranch, RefreshCw, Loader2, List, GitGraph, User, Clock, Hash, GitFork, Search, X, Eye, Cherry } from 'lucide-react';
 import { DiffViewer } from './DiffViewer';
+
 
 interface CommitInfo {
     hash: string;
@@ -148,7 +150,10 @@ function computeGraph(commits: CommitInfo[]): GraphNode[] {
 }
 
 export function CommitPanel() {
-    const { projects, selectedProjectId, gitStateVersion, bumpGitState } = useProjectStore();
+    const projects = useProjectStore(s => s.projects);
+    const selectedProjectId = useProjectStore(s => s.selectedProjectId);
+    const gitStateVersion = useProjectStore(s => s.gitStateVersion);
+    const bumpGitState = useProjectStore(s => s.bumpGitState);
     const project = projects.find(p => p.id === selectedProjectId);
     const { t } = useI18n();
 
@@ -170,6 +175,7 @@ export function CommitPanel() {
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const searchInputRef = useRef<HTMLInputElement>(null);
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 
     const handleSearchChange = (val: string) => {
         setSearchQuery(val);
@@ -249,7 +255,7 @@ export function CommitPanel() {
 
     const handleCherryPick = async (hash: string) => {
         if (!project) return;
-        if (!window.confirm(t('commits.cherryPickConfirm'))) return;
+        if (!await useConfirmStore.getState().confirm({ message: t('commits.cherryPickConfirm'), title: t('common.warning') })) return;
         try {
             await invoke<string>('cherry_pick_cmd', { repoPath: project.path, hash });
             bumpGitState();
@@ -570,7 +576,6 @@ export function CommitPanel() {
                         top: `${Math.min(tooltip.y + 12, window.innerHeight - 300)}px`,
                         backgroundColor: 'var(--bg-panel)',
                         border: '1px solid var(--border-default)',
-                        backdropFilter: 'blur(16px)',
                         minWidth: '300px',
                         maxWidth: '380px',
                     }}>
@@ -638,7 +643,7 @@ export function CommitPanel() {
                     <div className="fixed z-[9999] rounded-lg overflow-hidden shadow-2xl" style={{
                         left: `${commitCtx.x}px`, top: `${commitCtx.y}px`,
                         backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-default)',
-                        minWidth: '200px', backdropFilter: 'blur(12px)',
+                        minWidth: '200px',
                     }}>
                         <div className="px-3 py-1.5 text-[10px] font-mono truncate" style={{ borderBottom: '1px solid var(--border-default)', color: 'var(--text-muted)', backgroundColor: 'var(--bg-tree-header)' }}>
                             {commitCtx.commit.short_hash} — {commitCtx.commit.message.slice(0, 50)}

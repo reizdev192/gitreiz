@@ -81,3 +81,27 @@ body {
 #app {
   width: 100%;
 }
+
+/* ─── Theme Utility Classes (avoid inline style objects) ─── */
+.text-theme-primary { color: var(--text-primary); }
+.text-theme-secondary { color: var(--text-secondary); }
+.text-theme-muted { color: var(--text-muted); }
+.text-theme-accent { color: var(--text-accent); }
+.text-theme-inverse { color: var(--text-inverse); }
+.bg-theme-app { background-color: var(--bg-app); }
+.bg-theme-panel { background-color: var(--bg-panel); }
+.bg-theme-card { background-color: var(--bg-card); }
+.bg-theme-sidebar { background-color: var(--bg-sidebar); }
+.bg-theme-input { background-color: var(--bg-input); }
+.bg-theme-hover { background-color: var(--bg-hover); }
+.bg-theme-tree-header { background-color: var(--bg-tree-header); }
+.border-theme { border-color: var(--border-default); }
+.border-theme-subtle { border-color: var(--border-subtle); }
+.accent-bg { background-color: var(--accent); }
+.accent-muted-bg { background-color: var(--accent-muted); }
+
+/* ─── Performance: reduce paint complexity ─── */
+.gpu-layer {
+  will-change: transform;
+  transform: translateZ(0);
+}

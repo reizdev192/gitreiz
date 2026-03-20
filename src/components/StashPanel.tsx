@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '../store/useProjectStore';
 import { useI18n } from '../i18n/useI18n';
+import { useConfirmStore } from '../store/useConfirmStore';
 import { Archive, Trash2, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface StashEntry { index: number; message: string; date: string; }
@@ -34,7 +35,7 @@ export function StashPanel() {
     };
 
     const handleDrop = async (index: number) => {
-        if (!window.confirm(t('stash.confirmDrop'))) return;
+        if (!await useConfirmStore.getState().confirm({ message: t('stash.confirmDrop') })) return;
         try {
             await invoke<string>('stash_drop_cmd', { repoPath: project.path, index });
             await fetchStashes();

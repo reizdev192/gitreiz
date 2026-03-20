@@ -1,5 +1,5 @@
 [package]
-name = "app"
+name = "reizgit"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
@@ -11,7 +11,7 @@ rust-version = "1.77.2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "app_lib"
+name = "reizgit_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -26,3 +26,9 @@ tauri-plugin-log = "2"
 regex = "1"
 lazy_static = "1.4.0"
 tauri-plugin-dialog = "2"
+aes-gcm = "0.10"
+base64 = "0.22"
+rand = "0.8"
+pbkdf2 = { version = "0.12", features = ["simple"] }
+sha2 = "0.10"
+hmac = "0.12"

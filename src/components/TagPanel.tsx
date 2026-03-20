@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '../store/useProjectStore';
+import { dispatchWebhook } from '../utils/webhookDispatcher';
 import { useI18n } from '../i18n/useI18n';
+import { useConfirmStore } from '../store/useConfirmStore';
 import { Tag, Trash2, Plus, Search, X, Hash, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface TagInfo { name: string; hash: string; date: string; message: string; }
@@ -43,7 +45,7 @@ export function TagPanel() {
     const hasMore = filtered.length > showCount;
 
     const handleDelete = async (name: string, remote: boolean) => {
-        if (!window.confirm(t('tags.confirmDelete'))) return;
+        if (!await useConfirmStore.getState().confirm({ message: t('tags.confirmDelete') })) return;
         try {
             await invoke<string>('delete_tag_cmd', { repoPath: project.path, name, deleteRemote: remote });
             await fetchTags();
@@ -55,6 +57,7 @@ export function TagPanel() {
         if (!newTagName.trim()) return;
         try {
             await invoke<string>('create_tag_cmd', { repoPath: project.path, name: newTagName.trim(), message: newTagMsg || newTagName.trim() });
+            dispatchWebhook(project, 'tag', { tag_name: newTagName.trim(), commit_msg: newTagMsg });
             setNewTagName(''); setNewTagMsg(''); setShowCreate(false);
             await fetchTags();
             bumpGitState();

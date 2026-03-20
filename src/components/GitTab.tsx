@@ -3,12 +3,15 @@ import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '../store/useProjectStore';
 import { useI18n } from '../i18n/useI18n';
+import { useConfirmStore } from '../store/useConfirmStore';
 import { DeployPanel } from './DeployPanel';
 import { StashPanel } from './StashPanel';
 import { TagPanel } from './TagPanel';
 import { QuickCommit } from './QuickCommit';
 import { WorktreePanel } from './WorktreePanel';
-import { GitBranch, AlertTriangle, CheckCircle, RefreshCw, Folder, ChevronRight, ChevronDown, Rocket, Copy, Tag, Trash2, GitBranchPlus, Archive, ArchiveRestore, ArrowUp, ArrowDown, Download, GitMerge, Upload, Shield, FolderGit2, Link as LinkIcon } from 'lucide-react';
+import { ConflictResolver } from './ConflictResolver';
+import { dispatchWebhook } from '../utils/webhookDispatcher';
+import { GitBranch, AlertTriangle, CheckCircle, RefreshCw, Folder, ChevronRight, ChevronDown, Rocket, Copy, Tag, Trash2, GitBranchPlus, Archive, ArchiveRestore, ArrowUp, ArrowDown, Download, GitMerge, Upload, Shield, FolderGit2, Link as LinkIcon, Star } from 'lucide-react';
 
 interface TreeNode {
     name: string;
@@ -23,7 +26,12 @@ interface BranchDetail { last_commit: string; ahead: number; behind: number; ahe
 interface ContextMenuState { x: number; y: number; branchName: string; branchFullPath: string; }
 
 export function GitTab() {
-    const { projects, selectedProjectId, triggerDeploy, appendLog, bumpGitState } = useProjectStore();
+    const projects = useProjectStore(s => s.projects);
+    const selectedProjectId = useProjectStore(s => s.selectedProjectId);
+    const triggerDeploy = useProjectStore(s => s.triggerDeploy);
+    const appendLog = useProjectStore(s => s.appendLog);
+    const bumpGitState = useProjectStore(s => s.bumpGitState);
+    const toggleFavoriteBranch = useProjectStore(s => s.toggleFavoriteBranch);
     const { t } = useI18n();
     const project = projects.find(p => p.id === selectedProjectId);
 
@@ -39,6 +47,8 @@ export function GitTab() {
     const [tooltip, setTooltip] = useState<{ x: number; y: number; branch: string } | null>(null);
     const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [activeWorktrees, setActiveWorktrees] = useState<string[]>([]);
+    const [isMergeConflict, setIsMergeConflict] = useState(false);
+    const [showConflictResolver, setShowConflictResolver] = useState(false);
 
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +90,10 @@ export function GitTab() {
             invoke<Record<string, BranchDetail>>('get_branch_details_cmd', {
                 repoPath: project.path, branches: localBranches, currentBranch: current
             }).then(setDetailMap).catch(() => { });
+
+            // Check merge/conflict state — non-blocking
+            invoke<boolean>('check_merge_state_cmd', { repoPath: project.path })
+                .then(setIsMergeConflict).catch(() => setIsMergeConflict(false));
         } catch (error) {
             console.error("Failed to refresh git state", error);
         } finally {
@@ -139,7 +153,7 @@ export function GitTab() {
             const err = String(e);
             if (err.includes('already used by worktree')) {
                 // Branch has active worktree — offer to remove it first
-                if (window.confirm(`Branch "${clean(branch)}" has an active worktree.\nRemove worktree and checkout?`)) {
+                if (await useConfirmStore.getState().confirm({ title: t('common.warning'), message: `Branch "${clean(branch)}" has an active worktree.\nRemove worktree and checkout?` })) {
                     try {
                         // Find the worktree path from the error or from listing
                         const wts: { path: string; branch: string }[] = await invoke('list_worktrees_cmd', { repoPath: project.path });
@@ -210,10 +224,10 @@ export function GitTab() {
         const branchName = clean(branch);
         if (branchName === currentBranch) { showMsg(t('err.cannotDeleteCurrent'), true); return; }
         if (isProtected(branch)) {
-            const protectedOk = window.confirm(`⚠️ ${t('git.protectedWarning')}\n\n"${branchName}" ${t('git.protectedConfirm')}`);
+            const protectedOk = await useConfirmStore.getState().confirm({ title: `⚠️ ${t('git.protectedWarning')}`, message: `"${branchName}" ${t('git.protectedConfirm')}` });
             if (!protectedOk) return;
         }
-        const confirmed = window.confirm(`Delete local branch "${branchName}"?\n\nThis will run: git branch -d ${branchName}`);
+        const confirmed = await useConfirmStore.getState().confirm({ title: t('common.warning'), message: `Delete local branch "${branchName}"?\n\nThis will run: git branch -d ${branchName}` });
         if (!confirmed) return;
         setIsLoading(true);
         try {
@@ -235,6 +249,7 @@ export function GitTab() {
         setPromptState(null);
         try {
             await invoke<string>('create_branch_cmd', { repoPath: project.path, newBranch: newName, fromRef: clean(promptState.branchFullPath) });
+            dispatchWebhook(project, 'create_branch', { branch: newName, details: `Created from ${clean(promptState.branchFullPath)}` });
             showMsg(`Created branch "${newName}" from "${clean(promptState.branchFullPath)}"`);
             await refreshGitState();
         } catch (e: any) { showMsg(`Create failed: ${e}`, true); setIsLoading(false); }
@@ -268,17 +283,31 @@ export function GitTab() {
         } catch (e: any) { appendLog(`[ERROR] Pull failed: ${e}\n`); showMsg(`Pull failed: ${e}`, true); setIsLoading(false); }
     };
 
+    const handleFetchBranch = async (branch: string) => {
+        if (!project) return;
+        const branchName = clean(branch);
+        setIsLoading(true);
+        appendLog(`[GIT] Fetching "${branchName}" from remote...\n`);
+        try {
+            const result = await invoke<string>('fetch_branch_cmd', { repoPath: project.path, branch: branchName });
+            appendLog(`[GIT] ${result || `Fetched "${branchName}" successfully`}\n`);
+            showMsg(result || `Fetched "${branchName}"`);
+            await refreshGitState();
+        } catch (e: any) { appendLog(`[ERROR] Fetch failed: ${e}\n`); showMsg(`Fetch failed: ${e}`, true); setIsLoading(false); }
+    };
+
     const handleMerge = async (branch: string) => {
         if (!project) return;
         const branchName = clean(branch);
         if (branchName === currentBranch) { showMsg(t('err.cannotMergeSelf'), true); return; }
         if (!isClean) { showMsg(t('err.cannotMergeDirty'), true); return; }
-        const confirmed = window.confirm(`Merge "${branchName}" into "${currentBranch}"?\n\nThis will run: git merge ${branchName} --no-edit`);
+        const confirmed = await useConfirmStore.getState().confirm({ title: t('common.warning'), message: `Merge "${branchName}" into "${currentBranch}"?\n\nThis will run: git merge ${branchName} --no-edit` });
         if (!confirmed) return;
         setIsLoading(true);
         appendLog(`[GIT] Merging "${branchName}" into "${currentBranch}"...\n`);
         try {
             const result = await invoke<string>('merge_cmd', { repoPath: project.path, fromBranch: branchName });
+            dispatchWebhook(project, 'merge', { branch: currentBranch, details: `Merged ${branchName} into ${currentBranch}` });
             appendLog(`[GIT] ${result || `Merged "${branchName}" into "${currentBranch}"`}\n`);
             showMsg(result || `Merged "${branchName}" into "${currentBranch}"`);
             await refreshGitState();
@@ -287,12 +316,13 @@ export function GitTab() {
 
     const handlePush = async () => {
         if (!project) return;
-        const confirmed = window.confirm(`Push "${currentBranch}" to remote?\n\nThis will run:\n  git push\n  git push --tags`);
+        const confirmed = await useConfirmStore.getState().confirm({ title: t('common.warning'), message: `Push "${currentBranch}" to remote?\n\nThis will run:\n  git push\n  git push --tags` });
         if (!confirmed) return;
         setIsLoading(true);
         appendLog(`[GIT] Pushing "${currentBranch}"...\n`);
         try {
             const result = await invoke<string>('push_cmd', { repoPath: project.path });
+            dispatchWebhook(project, 'push', { branch: currentBranch });
             appendLog(`[GIT] ${result || 'Push successful'}\n`);
             showMsg(result || 'Push successful');
             await refreshGitState();
@@ -307,7 +337,19 @@ export function GitTab() {
     };
 
     const renderTree = (node: TreeNode, depth: number = 0): React.ReactNode => {
-        if (node.name === 'root') return Object.values(node.children).map(child => renderTree(child, depth));
+        let children = Object.values(node.children);
+        const favs = project?.favoriteBranches || [];
+        
+        // Sort: favorites first -> folders -> alphabetically
+        children.sort((a, b) => {
+            const aFav = a.isLeaf ? (favs.includes(clean(a.fullPath)) ? 1 : 0) : 0;
+            const bFav = b.isLeaf ? (favs.includes(clean(b.fullPath)) ? 1 : 0) : 0;
+            if (aFav !== bFav) return bFav - aFav;
+            if (a.isLeaf !== b.isLeaf) return a.isLeaf ? 1 : -1;
+            return a.name.localeCompare(b.name);
+        });
+
+        if (node.name === 'root') return children.map(child => renderTree(child, depth));
 
         const indent = depth * 16;
         const isCurrent = node.fullPath === currentBranch || node.fullPath.endsWith(`/${currentBranch}`);
@@ -335,10 +377,9 @@ export function GitTab() {
                 <div key={node.fullPath} className="group rounded-md cursor-pointer transition-colors" style={{ marginBottom: '1px' }}
                     onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; showTooltip(e); }}
                     onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.backgroundColor = isCurrent ? 'var(--accent-muted)' : 'transparent'; hideTooltip(); }}
-                    onDoubleClick={() => handleCheckout(node.fullPath)}
                     onContextMenu={e => handleContextMenu(e, node)}
                 >
-                    <div className="flex items-center" style={{ paddingLeft: `${12 + indent}px`, paddingRight: '12px', paddingTop: '5px', paddingBottom: '5px', backgroundColor: isCurrent ? 'var(--accent-muted)' : 'transparent', borderRadius: '6px' }}>
+                    <div className="flex items-center" style={{ paddingLeft: `${12 + indent}px`, paddingRight: '8px', paddingTop: '5px', paddingBottom: '5px', backgroundColor: isCurrent ? 'var(--accent-muted)' : 'transparent', borderRadius: '6px' }}>
                         <GitBranch className="w-3.5 h-3.5 shrink-0" style={{ color: isCurrent ? 'var(--text-accent)' : 'var(--text-muted)', marginRight: '8px' }} />
                         {isProtected(node.fullPath) && (
                             <Shield className="w-3 h-3 shrink-0" style={{ color: '#f59e0b', marginRight: '4px' }} />
@@ -346,8 +387,11 @@ export function GitTab() {
                         {activeWorktrees.includes(branchClean) && (
                             <LinkIcon className="w-3 h-3 shrink-0" style={{ color: '#06b6d4', marginRight: '4px' }} />
                         )}
+                        {favs.includes(branchClean) && (
+                            <Star className="w-3 h-3 shrink-0 fill-yellow-400 stroke-yellow-500" style={{ marginRight: '6px' }} />
+                        )}
                         {isEnvBranch && !isRemote && (
-                            <Rocket className="w-3 h-3 shrink-0 animate-pulse" style={{ color: '#f59e0b', marginRight: '4px' }} />
+                            <Rocket className="w-3 h-3 shrink-0" style={{ color: '#f59e0b', marginRight: '4px' }} />
                         )}
                         <span className="text-[13px] select-none" style={{ color: isCurrent ? 'var(--text-accent)' : 'var(--text-primary)', fontWeight: isCurrent ? 600 : 400, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {node.name}
@@ -378,8 +422,49 @@ export function GitTab() {
                             </span>
                         )}
 
+                        {/* Quick action buttons — visible on hover */}
+                        {!isRemote && (
+                            <span className="ml-auto flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {isCurrent ? (
+                                    <>
+                                        <button onClick={e => { e.stopPropagation(); handlePull(); }} title={t('ctx.pull')}
+                                            className="p-1 rounded transition-colors"
+                                            style={{ color: 'var(--text-muted)' }}
+                                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.15)'; e.currentTarget.style.color = '#3b82f6'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}>
+                                            <Download className="w-3 h-3" />
+                                        </button>
+                                        <button onClick={e => { e.stopPropagation(); handlePush(); }} title={t('ctx.push')}
+                                            className="p-1 rounded transition-colors"
+                                            style={{ color: 'var(--text-muted)' }}
+                                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,185,129,0.15)'; e.currentTarget.style.color = '#10b981'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}>
+                                            <Upload className="w-3 h-3" />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button onClick={e => { e.stopPropagation(); handleFetchBranch(node.fullPath); }} title={t('ctx.pull')}
+                                            className="p-1 rounded transition-colors"
+                                            style={{ color: 'var(--text-muted)' }}
+                                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.15)'; e.currentTarget.style.color = '#3b82f6'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}>
+                                            <Download className="w-3 h-3" />
+                                        </button>
+                                        <button onClick={e => { e.stopPropagation(); handleCheckout(node.fullPath); }} title={t('ctx.checkout')}
+                                            className="p-1 rounded transition-colors"
+                                            style={{ color: 'var(--text-muted)' }}
+                                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(139,92,246,0.15)'; e.currentTarget.style.color = '#8b5cf6'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}>
+                                            <GitBranch className="w-3 h-3" />
+                                        </button>
+                                    </>
+                                )}
+                            </span>
+                        )}
+
                         {isCurrent && (
-                            <span className="ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 font-bold" style={{ backgroundColor: 'var(--accent-muted)', color: 'var(--text-accent)' }}>HEAD</span>
+                            <span className="ml-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 font-bold" style={{ backgroundColor: 'var(--accent-muted)', color: 'var(--text-accent)' }}>HEAD</span>
                         )}
                     </div>
                 </div>
@@ -401,7 +486,7 @@ export function GitTab() {
                 </div>
                 {node.isOpen && (
                     <div style={{ marginLeft: `${12 + indent}px`, borderLeft: '1px solid var(--border-tree-line)', paddingLeft: '4px' }}>
-                        {Object.values(node.children).map(child => renderTree(child, depth + 1))}
+                        {children.map(child => renderTree(child, depth + 1))}
                     </div>
                 )}
             </div>
@@ -431,6 +516,15 @@ export function GitTab() {
 
         // Create new branch from this
         items.push({ label: `${t('ctx.createBranch').replace('...', '')} "${branchClean}"`, icon: <GitBranchPlus className="w-3.5 h-3.5" />, onClick: () => handleCreateBranch(contextMenu.branchFullPath) });
+
+        // Favorite Toggle
+        const isFav = project?.favoriteBranches?.includes(branchClean);
+        items.push({ 
+            label: isFav ? 'Remove from Favorites' : 'Add to Favorites', 
+            icon: <Star className="w-3.5 h-3.5" style={{ fill: isFav ? 'currentColor' : 'none' }} />, 
+            onClick: () => toggleFavoriteBranch(project!.id, branchClean),
+            divider: true
+        });
 
         // Worktree (Open in Parallel)
         if (branchClean !== currentBranch && !activeWorktrees.includes(branchClean)) {
@@ -465,9 +559,10 @@ export function GitTab() {
     };
 
     return (
-        <div className="flex flex-col h-full overflow-hidden relative" style={{ padding: '20px' }} ref={containerRef}>
+        <>
+        <div className="flex flex-col h-full overflow-hidden relative" ref={containerRef}>
             {/* Header */}
-            <div className="flex justify-between items-center shrink-0" style={{ marginBottom: '16px' }}>
+            <div className="flex justify-between items-center shrink-0 px-5 pt-5 pb-4">
                 <h2 className="text-lg font-semibold font-mono" style={{ color: 'var(--text-accent)' }}>{t('git.status')}</h2>
                 <button onClick={refreshGitState} disabled={isLoading}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm disabled:opacity-50 transition-colors"
@@ -524,6 +619,19 @@ export function GitTab() {
                         {checkoutMessage.text}
                     </span>
                 )}
+
+                {/* Merge Conflict Indicator */}
+                {isMergeConflict && (
+                    <button onClick={() => setShowConflictResolver(true)}
+                        className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded transition-colors ml-auto"
+                        style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.2)'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.12)'}
+                    >
+                        <GitMerge className="w-3 h-3" />
+                        {t('conflict.resolveBtn')}
+                    </button>
+                )}
             </div>
 
             {/* Create Branch Prompt */}
@@ -547,13 +655,15 @@ export function GitTab() {
             <DeployPanel />
             <QuickCommit />
 
+            {/* Scrollable area for Branch Tree + Panels */}
+            <div className="flex-1 overflow-y-auto min-h-0 px-5 pb-5">
             {/* Branch Tree */}
-            <div className="flex-1 overflow-hidden rounded-lg flex flex-col min-h-0" style={{ backgroundColor: 'var(--bg-tree)', border: '1px solid var(--border-default)' }}>
+            <div className="rounded-lg flex flex-col mt-3" style={{ backgroundColor: 'var(--bg-tree)', border: '1px solid var(--border-default)' }}>
                 <div className="flex justify-between items-center text-[11px] uppercase tracking-wider font-semibold" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-default)', backgroundColor: 'var(--bg-tree-header)', color: 'var(--text-muted)' }}>
                     <span>{t('git.branches')}</span>
                     <span className="text-[10px] italic lowercase normal-case font-normal" style={{ color: 'var(--text-muted)' }}>{t('git.rightClickActions')}</span>
                 </div>
-                <div className="flex-1 overflow-y-auto font-mono" style={{ padding: '6px' }}>
+                <div className="font-mono" style={{ padding: '6px' }}>
                     {treeData ? renderTree(treeData) : (
                         <div className="flex justify-center items-center h-full" style={{ color: 'var(--text-muted)' }}>
                             {isLoading ? t('git.loading') : t('git.noBranches')}
@@ -565,12 +675,13 @@ export function GitTab() {
             <StashPanel />
             <TagPanel />
             <WorktreePanel />
+            </div> {/* end scrollable area */}
 
             {/* Context Menu via Portal */}
             {contextMenu && createPortal(
                 <div className="fixed z-[9999] rounded-lg overflow-hidden shadow-2xl" style={{
                     left: `${contextMenu.x}px`, top: `${contextMenu.y}px`,
-                    backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-default)', minWidth: '240px', backdropFilter: 'blur(12px)',
+                    backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-default)', minWidth: '240px',
                 }} onClick={e => e.stopPropagation()}>
                     <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-default)', backgroundColor: 'var(--bg-tree-header)' }}>
                         {contextMenu.branchName}
@@ -606,8 +717,7 @@ export function GitTab() {
                         top: `${Math.min(tooltip.y + 12, window.innerHeight - 250)}px`,
                         backgroundColor: 'var(--bg-panel)',
                         border: '1px solid var(--border-default)',
-                        backdropFilter: 'blur(16px)',
-                        minWidth: '260px',
+                        minWidth: '280px',
                         maxWidth: '320px',
                     }}>
                         {/* Header */}
@@ -694,5 +804,9 @@ export function GitTab() {
                 );
             })()}
         </div>
+            {showConflictResolver && project && (
+                <ConflictResolver repoPath={project.path} onClose={() => { setShowConflictResolver(false); refreshGitState(); }} />
+            )}
+        </>
     );
 }

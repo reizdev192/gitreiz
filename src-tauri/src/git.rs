@@ -194,6 +194,11 @@ pub fn fetch_all(repo_path: &str) -> Result<String, GitError> {
     run_git_command(repo_path, &["fetch", "--all", "--prune"])
 }
 
+pub fn fetch_branch(repo_path: &str, branch: &str) -> Result<String, GitError> {
+    // First fetch latest from remote for this branch
+    run_git_command(repo_path, &["fetch", "origin", &format!("{}:{}", branch, branch)])
+}
+
 // ── Diff / Working tree ──
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -228,8 +233,12 @@ pub fn get_commit_files(repo_path: &str, hash: &str) -> Result<Vec<DiffFile>, Gi
 }
 
 pub fn get_file_diff(repo_path: &str, hash: &str, file_path: &str) -> Result<String, GitError> {
+    run_git_command(repo_path, &["diff", &format!("{}^", hash), hash, "--", file_path])
+        .or_else(|_| run_git_command(repo_path, &["diff", "--root", hash, "--", file_path]))
+}
+
+pub fn get_file_content_at_commit(repo_path: &str, hash: &str, file_path: &str) -> Result<String, GitError> {
     run_git_command(repo_path, &["show", &format!("{}:{}", hash, file_path)])
-        .or_else(|_| run_git_command(repo_path, &["diff", &format!("{}^", hash), hash, "--", file_path]))
 }
 
 // ── Working tree status (Quick Commit) ──
@@ -486,4 +495,62 @@ pub fn worktree_remove(repo_path: &str, worktree_path: &str) -> Result<String, G
 
 pub fn worktree_prune(repo_path: &str) -> Result<String, GitError> {
     run_git_command(repo_path, &["worktree", "prune"])
+}
+
+// ── Conflict Resolver ──
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConflictFile {
+    pub path: String,
+    pub status: String, // "UU" both modified, "AA" both added, etc.
+}
+
+/// Check if repo is in a merge/conflict state
+pub fn check_merge_state(repo_path: &str) -> Result<bool, GitError> {
+    let merge_head = Path::new(repo_path).join(".git").join("MERGE_HEAD");
+    Ok(merge_head.exists())
+}
+
+/// Get list of files with conflicts
+pub fn get_conflicted_files(repo_path: &str) -> Result<Vec<ConflictFile>, GitError> {
+    let output = run_git_command(repo_path, &["diff", "--name-only", "--diff-filter=U"])?;
+    let files: Vec<ConflictFile> = output
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| ConflictFile {
+            path: l.trim().to_string(),
+            status: "UU".to_string(),
+        })
+        .collect();
+    Ok(files)
+}
+
+/// Get raw file content (with conflict markers)
+pub fn get_conflict_content(repo_path: &str, file_path: &str) -> Result<String, GitError> {
+    let full_path = Path::new(repo_path).join(file_path);
+    std::fs::read_to_string(&full_path)
+        .map_err(|e| GitError(format!("Failed to read file: {}", e)))
+}
+
+/// Get "ours" version (stage 2 = current branch)
+pub fn get_ours_version(repo_path: &str, file_path: &str) -> Result<String, GitError> {
+    run_git_command(repo_path, &["show", &format!(":2:{}", file_path)])
+}
+
+/// Get "theirs" version (stage 3 = incoming branch)
+pub fn get_theirs_version(repo_path: &str, file_path: &str) -> Result<String, GitError> {
+    run_git_command(repo_path, &["show", &format!(":3:{}", file_path)])
+}
+
+/// Write resolved content and mark as resolved
+pub fn resolve_conflict(repo_path: &str, file_path: &str, content: &str) -> Result<String, GitError> {
+    let full_path = Path::new(repo_path).join(file_path);
+    std::fs::write(&full_path, content)
+        .map_err(|e| GitError(format!("Failed to write file: {}", e)))?;
+    run_git_command(repo_path, &["add", file_path])
+}
+
+/// Abort an ongoing merge
+pub fn abort_merge(repo_path: &str) -> Result<String, GitError> {
+    run_git_command(repo_path, &["merge", "--abort"])
 }

@@ -228,6 +228,11 @@ pub async fn fetch_all_cmd(repo_path: String) -> Result<String, String> {
     git::fetch_all(&repo_path).map_err(|e| e.0)
 }
 
+#[tauri::command]
+pub async fn fetch_branch_cmd(repo_path: String, branch: String) -> Result<String, String> {
+    git::fetch_branch(&repo_path, &branch).map_err(|e| e.0)
+}
+
 // ── Diff commands ──
 
 #[tauri::command]
@@ -238,6 +243,11 @@ pub async fn get_commit_files_cmd(repo_path: String, hash: String) -> Result<Vec
 #[tauri::command]
 pub async fn get_file_diff_cmd(repo_path: String, hash: String, file_path: String) -> Result<String, String> {
     git::get_file_diff(&repo_path, &hash, &file_path).map_err(|e| e.0)
+}
+
+#[tauri::command]
+pub async fn get_file_content_at_commit_cmd(repo_path: String, hash: String, file_path: String) -> Result<String, String> {
+    git::get_file_content_at_commit(&repo_path, &hash, &file_path).map_err(|e| e.0)
 }
 
 // ── Working tree / Quick Commit commands ──
@@ -315,4 +325,41 @@ pub async fn open_in_vscode_cmd(path: String) -> Result<(), String> {
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// ── Conflict Resolver Commands ──
+
+#[tauri::command]
+pub async fn check_merge_state_cmd(repo_path: String) -> Result<bool, String> {
+    git::check_merge_state(&repo_path).map_err(|e| e.0)
+}
+
+#[tauri::command]
+pub async fn get_conflicted_files_cmd(repo_path: String) -> Result<Vec<git::ConflictFile>, String> {
+    git::get_conflicted_files(&repo_path).map_err(|e| e.0)
+}
+
+#[tauri::command]
+pub async fn get_conflict_content_cmd(repo_path: String, file_path: String) -> Result<String, String> {
+    git::get_conflict_content(&repo_path, &file_path).map_err(|e| e.0)
+}
+
+#[tauri::command]
+pub async fn get_ours_version_cmd(repo_path: String, file_path: String) -> Result<String, String> {
+    git::get_ours_version(&repo_path, &file_path).map_err(|e| e.0)
+}
+
+#[tauri::command]
+pub async fn get_theirs_version_cmd(repo_path: String, file_path: String) -> Result<String, String> {
+    git::get_theirs_version(&repo_path, &file_path).map_err(|e| e.0)
+}
+
+#[tauri::command]
+pub async fn resolve_conflict_cmd(repo_path: String, file_path: String, content: String) -> Result<String, String> {
+    git::resolve_conflict(&repo_path, &file_path, &content).map_err(|e| e.0)
+}
+
+#[tauri::command]
+pub async fn abort_merge_cmd(repo_path: String) -> Result<String, String> {
+    git::abort_merge(&repo_path).map_err(|e| e.0)
 }

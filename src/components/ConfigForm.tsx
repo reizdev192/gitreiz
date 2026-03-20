@@ -1,41 +1,19 @@
-import { useState, useEffect } from 'react';
 import { FolderOpen, Plus, Trash2 } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useProjectStore } from '../store/useProjectStore';
 import type { ProjectConfig, DeployEnvironment } from '../store/useProjectStore';
 import { useI18n } from '../i18n/useI18n';
 
-export function ConfigForm({ onClose }: { onClose?: () => void }) {
-    const { projects, selectedProjectId, addProject, updateProject, deleteProject } = useProjectStore();
+interface ConfigFormProps {
+    onClose?: () => void;
+    formData: ProjectConfig;
+    setFormData: React.Dispatch<React.SetStateAction<ProjectConfig>>;
+}
+
+export function ConfigForm({ onClose, formData, setFormData }: ConfigFormProps) {
+    const { selectedProjectId, addProject, updateProject, deleteProject } = useProjectStore();
     const { t } = useI18n();
     const isNew = selectedProjectId === 'NEW';
-    const existingProject = projects.find(p => p.id === selectedProjectId);
-
-    const [formData, setFormData] = useState<ProjectConfig>({
-        id: '',
-        name: '',
-        path: '',
-        environments: [
-            { name: 'staging', tag_format: 'stagingf{version}' },
-            { name: 'prod', tag_format: 'v{version}-prod' }
-        ]
-    });
-
-    useEffect(() => {
-        if (existingProject) {
-            setFormData(existingProject);
-        } else if (isNew) {
-            setFormData({
-                id: crypto.randomUUID(),
-                name: '',
-                path: '',
-                environments: [
-                    { name: 'staging', tag_format: 'stagingf{version}' },
-                    { name: 'prod', tag_format: 'v{version}-prod' }
-                ]
-            });
-        }
-    }, [existingProject, isNew]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -133,7 +111,7 @@ export function ConfigForm({ onClose }: { onClose?: () => void }) {
                                 style={{ ...inputStyle, fontFamily: 'monospace', paddingRight: '36px', color: 'var(--text-accent)' }}
                                 value={formData.path}
                                 onChange={e => setFormData({ ...formData, path: e.target.value })}
-                                placeholder="C:\Users\...\project"
+                                placeholder="C:\\Users\\...\\project"
                             />
                             <button
                                 type="button"

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '../store/useProjectStore';
 import { useI18n } from '../i18n/useI18n';
+import { useConfirmStore } from '../store/useConfirmStore';
+import { dispatchWebhook } from '../utils/webhookDispatcher';
 import { FileEdit, Plus, Minus, Check, ChevronDown, ChevronRight, AlertCircle, Undo2, Trash2 } from 'lucide-react';
 
 interface WorkingFile { path: string; status: string; staged: boolean; }
@@ -61,7 +63,7 @@ export function QuickCommit() {
     };
 
     const handleDiscard = async (path: string, status: string) => {
-        if (!window.confirm(t('commit.discardConfirm'))) return;
+        if (!await useConfirmStore.getState().confirm({ message: t('commit.discardConfirm'), title: t('common.warning') })) return;
         try {
             const result = await invoke<string>('discard_file_cmd', { repoPath: project.path, path, status });
             appendLog(`Discarded: ${path} ${result ? '→ ' + result : '✓'}`);
@@ -72,7 +74,7 @@ export function QuickCommit() {
     };
 
     const handleDiscardAll = async () => {
-        if (!window.confirm(t('commit.discardAllConfirm'))) return;
+        if (!await useConfirmStore.getState().confirm({ message: t('commit.discardAllConfirm'), title: t('common.warning') })) return;
         try {
             await invoke<string>('discard_all_cmd', { repoPath: project.path });
             appendLog('Discarded all changes ✓');
@@ -87,6 +89,7 @@ export function QuickCommit() {
         setIsCommitting(true);
         try {
             await invoke<string>('commit_cmd', { repoPath: project.path, message: message.trim() });
+            dispatchWebhook(project, 'commit', { commit_msg: message.trim() });
             setMessage('');
             bumpGitState();
         } catch (e: any) { alert(`Commit failed: ${e}`); }

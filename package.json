@@ -1,5 +1,5 @@
 {
-  "name": "tauri-deploy",
+  "name": "reizgit",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -23,6 +23,7 @@
     "clsx": "^2.1.1",
     "esbuild": "^0.27.4",
     "framer-motion": "^12.36.0",
+    "highlight.js": "^11.11.1",
     "lucide-react": "^0.577.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

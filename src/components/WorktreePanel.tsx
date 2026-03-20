@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '../store/useProjectStore';
 import { useI18n } from '../i18n/useI18n';
+import { useConfirmStore } from '../store/useConfirmStore';
 import { GitFork, Trash2, FolderOpen, Terminal, ChevronDown, ChevronRight, Hash, Link } from 'lucide-react';
 
 interface WorktreeInfo { path: string; branch: string; head: string; is_main: boolean; }
@@ -33,7 +34,7 @@ export function WorktreePanel() {
     const linked = worktrees.filter(w => !w.is_main);
 
     const handleRemove = async (path: string) => {
-        if (!window.confirm(t('worktree.confirmRemove'))) return;
+        if (!await useConfirmStore.getState().confirm({ message: t('worktree.confirmRemove'), title: t('common.warning') })) return;
         try {
             await invoke<string>('worktree_remove_cmd', { repoPath: project.path, worktreePath: path });
             await fetchWorktrees();

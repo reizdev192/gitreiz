@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "tauri-deploy",
+  "productName": "ReizGit",
   "version": "0.1.0",
-  "identifier": "com.personal.taurideploy",
+  "identifier": "com.reiz.reizgit",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -12,13 +12,14 @@
   "app": {
     "windows": [
       {
-        "title": "Tauri Deploy Tool",
+        "title": "ReizGit",
         "width": 1100,
         "height": 700,
         "minWidth": 1100,
         "minHeight": 700,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "maximized": true
       }
     ],
     "security": {
