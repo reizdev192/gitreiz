@@ -32,11 +32,11 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
                 <div className="w-32 h-32 mb-6 relative">
                     {/* Glowing effect under logo */}
                     <div className="absolute inset-0 blur-xl opacity-30 rounded-full" style={{ backgroundColor: '#10b981' }}></div>
-                    <img src="/logo.png" alt="ReizGit Logo" className="w-full h-full object-contain relative z-10 drop-shadow-2xl" />
+                    <img src="/logo.png" alt="ZenGit Logo" className="w-full h-full object-contain relative z-10 drop-shadow-2xl" />
                 </div>
                 
                 <h1 className="text-3xl font-extrabold tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 mb-2">
-                    ReizGit
+                    ZenGit
                 </h1>
                 
                 <span className="text-xs font-mono font-medium tracking-[0.2em] uppercase text-emerald-500/70 mb-12">

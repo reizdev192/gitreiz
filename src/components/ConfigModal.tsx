@@ -27,8 +27,9 @@ export function ConfigModal({ onClose }: Props) {
         name: '',
         path: '',
         environments: [
-            { name: 'staging', tag_format: 'stagingf{version}' },
-            { name: 'prod', tag_format: 'v{version}-prod' }
+            { name: 'staging', tag_format: 'v{version}-stg' },
+            { name: 'uat', tag_format: 'v{version}-uat' },
+            { name: 'master', tag_format: 'v{version}-prod' }
         ],
         hooks: []
     });
@@ -42,8 +43,9 @@ export function ConfigModal({ onClose }: Props) {
                 name: '',
                 path: '',
                 environments: [
-                    { name: 'staging', tag_format: 'stagingf{version}' },
-                    { name: 'prod', tag_format: 'v{version}-prod' }
+                    { name: 'staging', tag_format: 'v{version}-stg' },
+                    { name: 'uat', tag_format: 'v{version}-uat' },
+                    { name: 'master', tag_format: 'v{version}-prod' }
                 ],
                 hooks: []
             });

@@ -148,7 +148,7 @@ export function ConfigForm({ onClose, formData, setFormData }: ConfigFormProps) 
                                             style={{ ...inputStyle, fontFamily: 'monospace' }}
                                             value={env.name}
                                             onChange={e => handleEnvChange(idx, 'name', e.target.value)}
-                                            placeholder="e.g. dev"
+                                            placeholder="e.g. staging"
                                         />
                                     </div>
                                     <div className="w-1/2 space-y-1.5">
@@ -158,7 +158,7 @@ export function ConfigForm({ onClose, formData, setFormData }: ConfigFormProps) 
                                             style={{ ...inputStyle, fontFamily: 'monospace' }}
                                             value={env.tag_format}
                                             onChange={e => handleEnvChange(idx, 'tag_format', e.target.value)}
-                                            placeholder="e.g. dev-{version}"
+                                            placeholder="e.g. v{version}-stg"
                                         />
                                     </div>
                                     <button

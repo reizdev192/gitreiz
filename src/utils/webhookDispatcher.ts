@@ -13,7 +13,7 @@ export interface WebhookPayload {
 const sendTelegram = async (integration: Integration, payload: WebhookPayload) => {
     if (!integration.botToken || !integration.chatId) return;
     
-    let text = `🚀 *ReizGit Notification*\n`;
+    let text = `🚀 *ZenGit Notification*\n`;
     text += `*Project:* ${payload.project_name}\n`;
     text += `*Event:* \`${payload.event.toUpperCase()}\`\n`;
     
@@ -40,7 +40,7 @@ const sendTelegram = async (integration: Integration, payload: WebhookPayload) =
 const sendSlack = async (integration: Integration, payload: WebhookPayload) => {
     if (!integration.webhookUrl) return;
 
-    let text = `🚀 *ReizGit Notification* - *${payload.project_name}*\nEvent: \`${payload.event.toUpperCase()}\``;
+    let text = `🚀 *ZenGit Notification* - *${payload.project_name}*\nEvent: \`${payload.event.toUpperCase()}\``;
     if (payload.branch) text += `\nBranch: \`${payload.branch}\``;
     if (payload.commit_msg) text += `\nCommit: ${payload.commit_msg}`;
     if (payload.tag_name) text += `\nTag: \`${payload.tag_name}\``;

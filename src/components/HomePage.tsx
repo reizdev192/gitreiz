@@ -20,15 +20,15 @@ export function HomePage() {
                     <div className="w-28 h-28 relative mb-2">
                         {/* Glow effect */}
                         <div className="absolute inset-0 blur-3xl opacity-30 rounded-full" style={{ backgroundColor: '#10b981' }}></div>
-                        <img src="/logo.png" alt="ReizGit Logo" className="w-full h-full object-contain relative z-10 drop-shadow-2xl hover:scale-110 transition-transform duration-500" />
+                        <img src="/logo.png" alt="ZenGit Logo" className="w-full h-full object-contain relative z-10 drop-shadow-2xl hover:scale-110 transition-transform duration-500" />
                     </div>
                     
                     <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 drop-shadow-sm">
-                        Welcome to ReizGit
+                        Welcome to ZenGit
                     </h1>
                     
                     <p className="text-sm md:text-base max-w-xl mx-auto leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                        Elevate your development workflow. ReizGit delivers powerful Git integrations, seamless deployment automation, and unified project management in one sleek workspace.
+                        Elevate your development workflow. ZenGit delivers powerful Git integrations, seamless deployment automation, and unified project management in one sleek workspace.
                     </p>
 
                     <div className="flex justify-center pt-4">

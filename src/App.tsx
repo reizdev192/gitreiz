@@ -9,7 +9,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { useTheme } from './context/ThemeContext';
 import { I18nProvider, useI18n } from './i18n/useI18n';
 import { LOCALE_LABELS, type Locale } from './i18n/translations';
-import { Plus, Settings, Sun, Moon, FolderGit2, Globe, HelpCircle, BarChart3, Network, X, Search, Download, Upload, FolderDown, GitBranch, TrendingUp, RefreshCw, Users } from 'lucide-react';
+import { Plus, Settings, Sun, Moon, FolderGit2, Globe, HelpCircle, Network, X, Search, Download, Upload, FolderDown, GitBranch, TrendingUp, RefreshCw, Users, TerminalSquare } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -21,8 +21,9 @@ import type { ProjectConfig } from './store/useProjectStore';
 
 // Lazy load heavy components — only loaded when needed
 const HelpGuide = lazy(() => import('./components/HelpGuide').then(m => ({ default: m.HelpGuide })));
-const DashboardPanel = lazy(() => import('./components/DashboardPanel').then(m => ({ default: m.DashboardPanel })));
+
 const GlobalSettings = lazy(() => import('./components/GlobalSettings').then(m => ({ default: m.GlobalSettings })));
+const CustomActionsBuilder = lazy(() => import('./components/CustomActionsBuilder').then(m => ({ default: m.CustomActionsBuilder })));
 const SplashScreen = lazy(() => import('./components/SplashScreen').then(m => ({ default: m.SplashScreen })));
 const PerformanceTab = lazy(() => import('./components/PerformanceTab').then(m => ({ default: m.PerformanceTab })));
 const TeamDashboard = lazy(() => import('./components/TeamDashboard').then(m => ({ default: m.TeamDashboard })));
@@ -44,8 +45,9 @@ function AppContent() {
     const [projectFilter, setProjectFilter] = useState('');
     const [showLangMenu, setShowLangMenu] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
-    const [showDashboard, setShowDashboard] = useState(false);
+
     const [showGlobalSettings, setShowGlobalSettings] = useState(false);
+    const [showCustomActions, setShowCustomActions] = useState(false);
     const [showDataMenu, setShowDataMenu] = useState(false);
     const [passwordDialog, setPasswordDialog] = useState<{ mode: 'export' | 'import'; filePath: string } | null>(null);
     const [showSplash, setShowSplash] = useState(true);
@@ -61,8 +63,9 @@ function AppContent() {
         name: '',
         path: '',
         environments: [
-            { name: 'staging', tag_format: 'stagingf{version}' },
-            { name: 'prod', tag_format: 'v{version}-prod' }
+            { name: 'staging', tag_format: 'v{version}-stg' },
+            { name: 'uat', tag_format: 'v{version}-uat' },
+            { name: 'master', tag_format: 'v{version}-prod' }
         ],
         hooks: []
     });
@@ -83,7 +86,7 @@ function AppContent() {
         try {
             const filePath = await save({
                 title: 'Export Settings',
-                defaultPath: 'reizgit-settings.json',
+                defaultPath: 'zengit-settings.json',
                 filters: [{ name: 'JSON', extensions: ['json'] }],
             });
             if (!filePath) return;
@@ -188,8 +191,8 @@ function AppContent() {
                     style={{ color: 'var(--text-accent)' }}
                     title={t('app.goHome') || 'Go to Home Screen'}
                 >
-                    <img src="/logo.png" alt="ReizGit" className="w-7 h-7 rounded-md object-contain group-hover:scale-105 transition-transform" />
-                    <span className="text-base font-bold tracking-wide">ReizGit</span>
+                    <img src="/logo.png" alt="ZenGit" className="w-7 h-7 rounded-md object-contain group-hover:scale-105 transition-transform" />
+                    <span className="text-base font-bold tracking-wide">ZenGit</span>
                 </button>
 
                 <div className="w-px h-5 mx-1" style={{ backgroundColor: 'var(--border-default)' }} />
@@ -312,8 +315,9 @@ function AppContent() {
                                             name: '',
                                             path: '',
                                             environments: [
-                                                { name: 'staging', tag_format: 'stagingf{version}' },
-                                                { name: 'prod', tag_format: 'v{version}-prod' }
+                                                { name: 'staging', tag_format: 'v{version}-stg' },
+                                                { name: 'uat', tag_format: 'v{version}-uat' },
+                                                { name: 'master', tag_format: 'v{version}-prod' }
                                             ],
                                             hooks: []
                                         });
@@ -339,15 +343,7 @@ function AppContent() {
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                    {/* Dashboard */}
-                    {project && (
-                        <button onClick={() => setShowDashboard(true)} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-muted)' }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-accent)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                            title="Dashboard">
-                            <BarChart3 className="w-4 h-4" />
-                        </button>
-                    )}
+
                     {/* Help Guide */}
                     <button onClick={() => setShowHelp(true)} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-muted)' }}
                         onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-accent)'; }}
@@ -370,6 +366,14 @@ function AppContent() {
                         title="Global Integrations"
                     >
                         <Network className="w-4 h-4" />
+                    </button>
+                    
+                    <button onClick={() => setShowCustomActions(true)} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-accent)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        title="Custom Actions Builder"
+                    >
+                        <TerminalSquare className="w-4 h-4" />
                     </button>
 
                     {/* Import / Export Settings */}
@@ -537,10 +541,13 @@ function AppContent() {
             )}
 
             {/* Dashboard */}
-            {showDashboard && <Suspense fallback={null}><DashboardPanel onClose={() => setShowDashboard(false)} /></Suspense>}
+
 
             {/* Global Settings */}
             {showGlobalSettings && <Suspense fallback={null}><GlobalSettings onClose={() => setShowGlobalSettings(false)} /></Suspense>}
+
+            {/* Custom Actions Builder */}
+            {showCustomActions && <Suspense fallback={null}><CustomActionsBuilder onClose={() => setShowCustomActions(false)} /></Suspense>}
         </div>
         </>
     );

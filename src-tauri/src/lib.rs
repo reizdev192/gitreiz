@@ -4,6 +4,7 @@ mod git;
 mod version;
 mod commands;
 mod stats;
+mod custom_actions;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -74,6 +75,10 @@ pub fn run() {
             commands::get_theirs_version_cmd,
             commands::resolve_conflict_cmd,
             commands::abort_merge_cmd,
+            // Custom Actions commands
+            custom_actions::get_custom_actions,
+            custom_actions::save_custom_actions,
+            custom_actions::execute_custom_action,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

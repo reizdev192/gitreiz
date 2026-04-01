@@ -11,7 +11,9 @@ import { QuickCommit } from './QuickCommit';
 import { WorktreePanel } from './WorktreePanel';
 import { ConflictResolver } from './ConflictResolver';
 import { dispatchWebhook } from '../utils/webhookDispatcher';
-import { GitBranch, AlertTriangle, CheckCircle, RefreshCw, Folder, ChevronRight, ChevronDown, Rocket, Copy, Tag, Trash2, GitBranchPlus, Archive, ArchiveRestore, ArrowUp, ArrowDown, Download, GitMerge, Upload, Shield, FolderGit2, Link as LinkIcon, Star } from 'lucide-react';
+import { useCustomActionsStore, type CustomAction } from '../store/useCustomActionsStore';
+import { ActionConfirmDialog } from './ActionConfirmDialog';
+import { GitBranch, AlertTriangle, CheckCircle, RefreshCw, Folder, ChevronRight, ChevronDown, Rocket, Copy, Tag, Trash2, GitBranchPlus, Archive, ArchiveRestore, ArrowUp, ArrowDown, Download, GitMerge, Upload, Shield, FolderGit2, Link as LinkIcon, Star, TerminalSquare } from 'lucide-react';
 
 interface TreeNode {
     name: string;
@@ -30,8 +32,10 @@ export function GitTab() {
     const selectedProjectId = useProjectStore(s => s.selectedProjectId);
     const triggerDeploy = useProjectStore(s => s.triggerDeploy);
     const appendLog = useProjectStore(s => s.appendLog);
+    const openTerminalBar = useProjectStore(s => s.openTerminalBar);
     const bumpGitState = useProjectStore(s => s.bumpGitState);
     const toggleFavoriteBranch = useProjectStore(s => s.toggleFavoriteBranch);
+    const { actions, loadActions } = useCustomActionsStore();
     const { t } = useI18n();
     const project = projects.find(p => p.id === selectedProjectId);
 
@@ -43,15 +47,18 @@ export function GitTab() {
     const [tagMap, setTagMap] = useState<Record<string, BranchTagInfo>>({});
     const [detailMap, setDetailMap] = useState<Record<string, BranchDetail>>({});
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+    const [globalContextMenu, setGlobalContextMenu] = useState<{ x: number, y: number } | null>(null);
     const [promptState, setPromptState] = useState<{ type: string; branchFullPath: string; value: string } | null>(null);
     const [tooltip, setTooltip] = useState<{ x: number; y: number; branch: string } | null>(null);
     const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [activeWorktrees, setActiveWorktrees] = useState<string[]>([]);
     const [isMergeConflict, setIsMergeConflict] = useState(false);
     const [showConflictResolver, setShowConflictResolver] = useState(false);
+    const [pendingAction, setPendingAction] = useState<{ action: CustomAction, renderedScript: string } | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
 
+    useEffect(() => { loadActions(); }, [loadActions]);
     useEffect(() => { if (project) refreshGitState(); }, [project?.id]);
     useEffect(() => {
         const handler = () => { if (project) refreshGitState(); };
@@ -59,7 +66,7 @@ export function GitTab() {
         return () => window.removeEventListener('force-git-refresh', handler);
     }, [project?.id]);
     useEffect(() => {
-        const handler = () => setContextMenu(null);
+        const handler = () => { setContextMenu(null); setGlobalContextMenu(null); };
         window.addEventListener('click', handler);
         return () => window.removeEventListener('click', handler);
     }, []);
@@ -329,11 +336,37 @@ export function GitTab() {
         } catch (e: any) { appendLog(`[ERROR] Push failed: ${e}\n`); showMsg(`Push failed: ${e}`, true); setIsLoading(false); }
     };
 
+    const handleExecuteCustomAction = async () => {
+        if (!pendingAction || !project) return;
+        const toRun = pendingAction;
+        setPendingAction(null);
+        setIsLoading(true);
+        appendLog(`[GIT] Executing custom action: ${toRun.action.name}\n`);
+        openTerminalBar();
+        try {
+            const result = await invoke<string>('execute_custom_action', { cwd: project.path, script: toRun.renderedScript });
+            appendLog(`[GIT] ${result}\n`);
+            showMsg(`Executed: ${toRun.action.name}`);
+            await refreshGitState();
+        } catch (e: any) {
+            appendLog(`[ERROR] Action failed: ${e}\n`);
+            showMsg(`Action failed: ${e}`, true);
+            setIsLoading(false);
+        }
+    };
+
     const handleContextMenu = (e: React.MouseEvent, node: TreeNode) => {
         if (!node.isLeaf) return;
         e.preventDefault();
         e.stopPropagation();
         setContextMenu({ x: e.clientX, y: e.clientY, branchName: node.name, branchFullPath: node.fullPath });
+    };
+
+    const handleWorkspaceContextMenu = (e: React.MouseEvent) => {
+        if (e.target === e.currentTarget) {
+            e.preventDefault();
+            setGlobalContextMenu({ x: e.clientX, y: e.clientY });
+        }
     };
 
     const renderTree = (node: TreeNode, depth: number = 0): React.ReactNode => {
@@ -555,7 +588,47 @@ export function GitTab() {
         // Refresh
         items.push({ label: t('git.refresh'), icon: <RefreshCw className="w-3.5 h-3.5" />, onClick: refreshGitState });
 
+        // Custom Actions
+        const branchActions = actions.filter(a => a.context === 'branch');
+        if (branchActions.length > 0) {
+            let first = true;
+            for (const action of branchActions) {
+                items.push({
+                    divider: first,
+                    label: action.name,
+                    icon: <TerminalSquare className="w-3.5 h-3.5" />,
+                    onClick: () => {
+                        const script = action.script
+                            .replace(/{TARGET_BRANCH}/g, branchClean)
+                            .replace(/{CURRENT_BRANCH}/g, currentBranch)
+                            .replace(/{REPO_PATH}/g, project!.path)
+                            .replace(/{TARGET_COMMIT}/g, '');
+                        setPendingAction({ action, renderedScript: script });
+                    }
+                });
+                first = false;
+            }
+        }
+
         return items;
+    };
+
+    const globalContextMenuItems = () => {
+        const globalActions = actions.filter(a => a.context === 'global');
+        if (globalActions.length === 0) return [];
+        
+        return globalActions.map(action => ({
+            label: action.name,
+            icon: <TerminalSquare className="w-3.5 h-3.5" />,
+            onClick: () => {
+                const script = action.script
+                    .replace(/{CURRENT_BRANCH}/g, currentBranch)
+                    .replace(/{REPO_PATH}/g, project!.path)
+                    .replace(/{TARGET_BRANCH}/g, '')
+                    .replace(/{TARGET_COMMIT}/g, '');
+                setPendingAction({ action, renderedScript: script });
+            }
+        }));
     };
 
     return (
@@ -656,7 +729,7 @@ export function GitTab() {
             <QuickCommit />
 
             {/* Scrollable area for Branch Tree + Panels */}
-            <div className="flex-1 overflow-y-auto min-h-0 px-5 pb-5">
+            <div className="flex-1 overflow-y-auto min-h-0 px-5 pb-5" onContextMenu={handleWorkspaceContextMenu}>
             {/* Branch Tree */}
             <div className="rounded-lg flex flex-col mt-3" style={{ backgroundColor: 'var(--bg-tree)', border: '1px solid var(--border-default)' }}>
                 <div className="flex justify-between items-center text-[11px] uppercase tracking-wider font-semibold" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-default)', backgroundColor: 'var(--bg-tree-header)', color: 'var(--text-muted)' }}>
@@ -676,6 +749,16 @@ export function GitTab() {
             <TagPanel />
             <WorktreePanel />
             </div> {/* end scrollable area */}
+
+            {/* Custom Action Confirm Dialog */}
+            {pendingAction && (
+                <ActionConfirmDialog
+                    action={pendingAction.action}
+                    renderedScript={pendingAction.renderedScript}
+                    onConfirm={handleExecuteCustomAction}
+                    onClose={() => setPendingAction(null)}
+                />
+            )}
 
             {/* Context Menu via Portal */}
             {contextMenu && createPortal(
@@ -700,6 +783,32 @@ export function GitTab() {
                                 <span className={item.accent ? 'font-semibold' : ''}>{item.label}</span>
                             </button>
                         </div>
+                    ))}
+                </div>,
+                document.body
+            )}
+
+            {/* Global Context Menu via Portal */}
+            {globalContextMenu && globalContextMenuItems().length > 0 && createPortal(
+                <div className="fixed z-[9999] rounded-lg overflow-hidden shadow-2xl" style={{
+                    left: `${globalContextMenu.x}px`, top: `${globalContextMenu.y}px`,
+                    backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-default)', minWidth: '200px',
+                }} onClick={e => e.stopPropagation()}>
+                    <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-default)', backgroundColor: 'var(--bg-tree-header)' }}>
+                        {t('git.globalActions')}
+                    </div>
+                    {globalContextMenuItems().map((item, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => { item.onClick(); setGlobalContextMenu(null); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors text-left"
+                            style={{ color: 'var(--text-primary)' }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                            <span style={{ color: 'var(--text-muted)' }}>{item.icon}</span>
+                            <span>{item.label}</span>
+                        </button>
                     ))}
                 </div>,
                 document.body

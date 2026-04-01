@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { BarChart3, Users, TrendingUp, Calendar, Clock, AlertTriangle, GitBranch, FileCode, RefreshCw, ChevronDown, Flame, Zap, Copy, Trash2, LogIn } from 'lucide-react';
+import { BarChart3, Users, TrendingUp, Calendar, AlertTriangle, GitBranch, FileCode, RefreshCw, ChevronDown, Flame, Zap, Copy, Trash2, LogIn } from 'lucide-react';
 import { useI18n } from '../i18n/useI18n';
 import type { TranslationKey } from '../i18n/translations';
 
@@ -10,9 +10,7 @@ interface ContributorStats {
     author: string; email: string; commits: number; lines_added: number; lines_removed: number;
     files_changed: number; active_days: number; first_commit: string; last_commit: string; avg_commit_size: number;
 }
-interface HeatmapDay { date: string; count: number; }
-interface HourActivity { hour: number; count: number; }
-interface AuthorHourActivity { author: string; hours: HourActivity[]; }
+
 interface BranchStats { name: string; author: string; age_days: number; commits_count: number; is_merged: boolean; last_commit_date: string; }
 interface ChurnFile { path: string; times_modified: number; unique_authors: number; total_changes: number; }
 interface CommitSizeInfo { hash: string; author: string; message: string; date: string; lines_added: number; lines_removed: number; total: number; }
@@ -52,7 +50,6 @@ export function PerformanceTab({ repoPath }: { repoPath: string }) {
     const { t } = useI18n();
     const [subTab, setSubTab] = useState<SubTab>('overview');
     const [range, setRange] = useState<DateRange>('month');
-    const [selectedAuthor, setSelectedAuthor] = useState<string>('');
     const [showRangeMenu, setShowRangeMenu] = useState(false);
     const [loadedTabs, setLoadedTabs] = useState<Set<SubTab>>(new Set());
 
@@ -60,8 +57,6 @@ export function PerformanceTab({ repoPath }: { repoPath: string }) {
     const [churnFiles, setChurnFiles] = useState<ChurnFile[]>([]);
     const [commitSizes, setCommitSizes] = useState<CommitSizeInfo[]>([]);
     const [alerts, setAlerts] = useState<AlertInfo[]>([]);
-    const [heatmap, setHeatmap] = useState<HeatmapDay[]>([]);
-    const [activeHours, setActiveHours] = useState<AuthorHourActivity[]>([]);
     const [branches, setBranches] = useState<BranchStats[]>([]);
     const [tabLoading, setTabLoading] = useState(false);
 
@@ -74,8 +69,7 @@ export function PerformanceTab({ repoPath }: { repoPath: string }) {
 
     const subTabs: { key: SubTab; labelKey: TranslationKey; icon: React.ReactNode }[] = [
         { key: 'overview', labelKey: 'perf.overview', icon: <BarChart3 className="w-3.5 h-3.5" /> },
-        { key: 'alerts', labelKey: 'perf.alertsTeam', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
-        { key: 'activity', labelKey: 'perf.activity', icon: <Calendar className="w-3.5 h-3.5" /> },
+        { key: 'alerts', labelKey: 'perf.alerts', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
         { key: 'branches', labelKey: 'perf.branches', icon: <GitBranch className="w-3.5 h-3.5" /> },
     ];
 
@@ -96,12 +90,7 @@ export function PerformanceTab({ repoPath }: { repoPath: string }) {
                     invoke<AlertInfo[]>('get_smart_alerts_cmd', { repoPath }).catch(() => []),
                 ]);
                 setContributors(stats); setAlerts(al);
-            } else if (tab === 'activity') {
-                const [heat, hours] = await Promise.all([
-                    invoke<HeatmapDay[]>('get_commit_heatmap_cmd', { repoPath, author: selectedAuthor || null }).catch(() => []),
-                    invoke<AuthorHourActivity[]>('get_active_hours_cmd', { repoPath, since }).catch(() => []),
-                ]);
-                setHeatmap(heat); setActiveHours(hours);
+
             } else if (tab === 'branches') {
                 const br = await invoke<BranchStats[]>('get_branch_lifecycle_cmd', { repoPath }).catch(() => []);
                 setBranches(br);
@@ -109,7 +98,7 @@ export function PerformanceTab({ repoPath }: { repoPath: string }) {
             setLoadedTabs(prev => new Set(prev).add(tab));
         } catch (e) { console.error('Failed to fetch tab data:', e); }
         setTabLoading(false);
-    }, [repoPath, since, days, selectedAuthor, loadedTabs]);
+    }, [repoPath, since, days, loadedTabs]);
 
     useEffect(() => { fetchTab(subTab); }, [subTab, fetchTab]);
 
@@ -134,12 +123,7 @@ export function PerformanceTab({ repoPath }: { repoPath: string }) {
         return Object.entries(ab).map(([author, s]) => ({ author, activeBranches: s.size, score: Math.max(1, Math.min(10, 11 - s.size)) })).sort((a, b) => b.score - a.score);
     }, [branches]);
 
-    const aggregatedHours = useMemo(() => {
-        const totals = new Array(24).fill(0);
-        (selectedAuthor ? activeHours.filter(a => a.author === selectedAuthor) : activeHours).forEach(a => a.hours.forEach(h => { totals[h.hour] += h.count; }));
-        return totals;
-    }, [activeHours, selectedAuthor]);
-    const maxHourCount = Math.max(...aggregatedHours, 1);
+
 
     return (
         <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--bg-panel)' }}>
@@ -157,14 +141,7 @@ export function PerformanceTab({ repoPath }: { repoPath: string }) {
                 ))}
                 <div className="flex-1" />
                 <div className="flex items-center gap-2 pr-2">
-                    {subTab === 'alerts' && (
-                        <select value={selectedAuthor} onChange={e => setSelectedAuthor(e.target.value)}
-                            className="text-[11px] font-medium px-2 py-1 rounded outline-none cursor-pointer"
-                            style={{ backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}>
-                            <option value="">{t('perf.all')}</option>
-                            {contributors.map(c => <option key={c.email} value={c.email}>{c.author}</option>)}
-                        </select>
-                    )}
+
                     <div className="relative">
                         <button onClick={() => setShowRangeMenu(!showRangeMenu)}
                             className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded transition-colors"
@@ -208,8 +185,7 @@ export function PerformanceTab({ repoPath }: { repoPath: string }) {
                             totalCommits={totalCommits} totalLinesAdded={totalLinesAdded} totalLinesRemoved={totalLinesRemoved}
                             avgPerDay={avgPerDay} contributors={contributors} churnFiles={churnFiles}
                             commitSizeDistribution={commitSizeDistribution} />}
-                        {subTab === 'alerts' && <AlertsTeamContent t={t} alerts={alerts} contributors={contributors} />}
-                        {subTab === 'activity' && <ActivityContent t={t} heatmap={heatmap} aggregatedHours={aggregatedHours} maxHourCount={maxHourCount} />}
+                        {subTab === 'alerts' && <AlertsTeamContent t={t} alerts={alerts} />}
                         {subTab === 'branches' && <BranchesContent t={t} focusScores={focusScores} branches={branches} repoPath={repoPath} onRefresh={handleRefresh} />}
                     </div>
                 )}
@@ -284,7 +260,10 @@ function OverviewContent({ t, totalCommits, totalLinesAdded, totalLinesRemoved, 
 // ── TAB 2: Alerts + Leaderboard ──
 // ════════════════════════════════════════════════
 
-function AlertsTeamContent({ t, alerts, contributors }: { t: TFn; alerts: AlertInfo[]; contributors: ContributorStats[] }) {
+function AlertsTeamContent({ t, alerts }: { t: TFn; alerts: AlertInfo[] }) {
+    if (alerts.length === 0) {
+        return <EmptyState text="No alerts detected." />;
+    }
     return (
         <>
             {alerts.length > 0 && (
@@ -309,92 +288,11 @@ function AlertsTeamContent({ t, alerts, contributors }: { t: TFn; alerts: AlertI
                 </>
             )}
 
-            <Panel icon={<Users className="w-3.5 h-3.5" />} iconColor="var(--text-accent)" title={t('perf.leaderboard')}>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-[11px]">
-                        <thead>
-                            <tr style={{ backgroundColor: 'var(--bg-sidebar)' }}>
-                                {['#', t('perf.member'), t('perf.commits'), t('perf.linesPlus'), t('perf.linesMinus'), t('perf.files'), t('perf.activeDays'), t('perf.avgSize')].map(h => (
-                                    <th key={h} className="px-2 py-2 text-left font-bold whitespace-nowrap" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-default)' }}>{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {contributors.map((c, i) => (
-                                <tr key={c.email} className="transition-colors"
-                                    style={{ backgroundColor: 'transparent' }}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                                    <td className="px-2 py-2 font-bold" style={{ color: i < 3 ? ['#f59e0b', '#94a3b8', '#c2884f'][i] : 'var(--text-muted)' }}>
-                                        {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
-                                    </td>
-                                    <td className="px-2 py-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
-                                                style={{ backgroundColor: `hsl(${hashCode(c.email) % 360}, 60%, 40%)`, color: 'white' }}>
-                                                {c.author.charAt(0).toUpperCase()}
-                                            </div>
-                                            <span className="font-medium truncate" style={{ color: 'var(--text-primary)', maxWidth: '120px' }}>{c.author}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-2 py-2 font-bold" style={{ color: 'var(--text-primary)' }}>{c.commits}</td>
-                                    <td className="px-2 py-2" style={{ color: '#10b981' }}>+{formatNumber(c.lines_added)}</td>
-                                    <td className="px-2 py-2" style={{ color: '#ef4444' }}>-{formatNumber(c.lines_removed)}</td>
-                                    <td className="px-2 py-2" style={{ color: 'var(--text-secondary)' }}>{c.files_changed}</td>
-                                    <td className="px-2 py-2" style={{ color: 'var(--text-secondary)' }}>{c.active_days}</td>
-                                    <td className="px-2 py-2" style={{ color: 'var(--text-muted)' }}>{c.avg_commit_size}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Panel>
-            <PanelDesc text={t('perf.descLeaderboard')} />
         </>
     );
 }
 
-// ════════════════════════════════════════════════
-// ── TAB 3: Activity ──
-// ════════════════════════════════════════════════
 
-function ActivityContent({ t, heatmap, aggregatedHours, maxHourCount }: {
-    t: TFn; heatmap: HeatmapDay[]; aggregatedHours: number[]; maxHourCount: number;
-}) {
-    return (
-        <>
-            <CommitHeatmap t={t} data={heatmap} />
-            <PanelDesc text={t('perf.descHeatmap')} />
-
-            <Panel icon={<Clock className="w-3.5 h-3.5" />} iconColor="var(--text-accent)" title={t('perf.activeHours')}>
-                <div className="px-3 py-2.5">
-                    <div className="flex items-end gap-[3px]" style={{ height: '90px' }}>
-                        {aggregatedHours.map((count, hour) => (
-                            <div key={hour} className="flex-1 flex flex-col items-center gap-0.5 group relative">
-                                <div className="w-full rounded-t transition-all duration-200"
-                                    style={{
-                                        height: `${Math.max(3, (count / maxHourCount) * 80)}px`,
-                                        backgroundColor: hour >= 22 || hour < 6 ? 'rgba(239,68,68,0.6)' : hour >= 9 && hour <= 18 ? 'rgba(59,130,246,0.7)' : 'rgba(148,163,184,0.4)',
-                                    }} />
-                                <span className="text-[8px]" style={{ color: 'var(--text-muted)' }}>{hour}</span>
-                                <div className="absolute bottom-full mb-1 hidden group-hover:block px-2 py-1 rounded text-[9px] font-bold whitespace-nowrap z-10"
-                                    style={{ backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
-                                    {count} {t('perf.commitsAt')} {hour}:00
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-3 mt-2 justify-end">
-                        <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(59,130,246,0.7)' }} /><span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{t('perf.working')}</span></div>
-                        <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(148,163,184,0.4)' }} /><span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{t('perf.offPeak')}</span></div>
-                        <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(239,68,68,0.6)' }} /><span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{t('perf.overtime')}</span></div>
-                    </div>
-                </div>
-            </Panel>
-            <PanelDesc text={t('perf.descActiveHours')} />
-        </>
-    );
-}
 
 // ════════════════════════════════════════════════
 // ── TAB 4: Branches ──
@@ -562,86 +460,7 @@ function SizeBar({ label, count, total, color }: { label: string; count: number;
     );
 }
 
-function CommitHeatmap({ t, data }: { t: TFn; data: HeatmapDay[] }) {
-    const dayMap = useMemo(() => { const m: Record<string, number> = {}; data.forEach(d => { m[d.date] = d.count; }); return m; }, [data]);
-    const maxCount = useMemo(() => Math.max(...data.map(d => d.count), 1), [data]);
 
-    const weeks = useMemo(() => {
-        const result: string[][] = [];
-        const now = new Date();
-        const start = new Date(now); start.setDate(start.getDate() - 364); start.setDate(start.getDate() - start.getDay());
-        let currentWeek: string[] = [];
-        const cursor = new Date(start);
-        while (cursor <= now) {
-            currentWeek.push(cursor.toISOString().split('T')[0]);
-            if (currentWeek.length === 7) { result.push(currentWeek); currentWeek = []; }
-            cursor.setDate(cursor.getDate() + 1);
-        }
-        if (currentWeek.length > 0) result.push(currentWeek);
-        return result;
-    }, []);
-
-    const getColor = (count: number) => {
-        if (count === 0) return 'var(--bg-hover)';
-        const intensity = count / maxCount;
-        if (intensity > 0.75) return '#10b981';
-        if (intensity > 0.5) return '#34d399';
-        if (intensity > 0.25) return '#6ee7b7';
-        return '#a7f3d0';
-    };
-
-    const monthLabels = useMemo(() => {
-        const labels: { label: string; col: number }[] = [];
-        let lastMonth = -1;
-        weeks.forEach((week, i) => {
-            const d = new Date(week[0]);
-            if (d.getMonth() !== lastMonth) { lastMonth = d.getMonth(); labels.push({ label: d.toLocaleDateString('en', { month: 'short' }), col: i }); }
-        });
-        return labels;
-    }, [weeks]);
-
-    return (
-        <Panel icon={<Calendar className="w-3.5 h-3.5" />} iconColor="var(--text-accent)" title={t('perf.commitActivity')}>
-            <div className="px-3 py-2.5 overflow-hidden">
-                <div className="overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-                    <div className="flex mb-1" style={{ paddingLeft: '16px' }}>
-                        {monthLabels.map(({ label, col }, i) => {
-                            const prevCol = i > 0 ? monthLabels[i - 1].col : 0;
-                            const gap = i === 0 ? col : col - prevCol;
-                            return <span key={i} className="text-[8px] shrink-0" style={{ color: 'var(--text-muted)', width: `${gap * 11}px` }}>{label}</span>;
-                        })}
-                    </div>
-                    <div className="flex gap-[2px]" style={{ width: 'fit-content' }}>
-                        <div className="flex flex-col gap-[2px] shrink-0" style={{ width: '14px' }}>
-                            {['', 'M', '', 'W', '', 'F', ''].map((d, i) => (
-                                <div key={i} className="text-[8px] flex items-center justify-end" style={{ height: '9px', color: 'var(--text-muted)' }}>{d}</div>
-                            ))}
-                        </div>
-                        {weeks.map((week, wi) => (
-                            <div key={wi} className="flex flex-col gap-[2px]">
-                                {week.map((date, di) => (
-                                    <div key={di} className="rounded-[2px] cursor-default"
-                                        style={{ width: '9px', height: '9px', backgroundColor: getColor(dayMap[date] || 0) }}
-                                        title={`${date}: ${dayMap[date] || 0} commits`} />
-                                ))}
-                                {week.length < 7 && Array.from({ length: 7 - week.length }).map((_, i) => (
-                                    <div key={`pad-${i}`} style={{ width: '9px', height: '9px' }} />
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="flex items-center gap-2 mt-2 justify-end">
-                    <span className="text-[8px]" style={{ color: 'var(--text-muted)' }}>{t('perf.less')}</span>
-                    {['var(--bg-hover)', '#a7f3d0', '#6ee7b7', '#34d399', '#10b981'].map((c, i) => (
-                        <div key={i} className="rounded-[2px]" style={{ width: '9px', height: '9px', backgroundColor: c }} />
-                    ))}
-                    <span className="text-[8px]" style={{ color: 'var(--text-muted)' }}>{t('perf.more')}</span>
-                </div>
-            </div>
-        </Panel>
-    );
-}
 
 // ── Helpers ──
 function formatNumber(n: number): string {
@@ -649,8 +468,4 @@ function formatNumber(n: number): string {
     if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
     return n.toString();
 }
-function hashCode(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    return Math.abs(hash);
-}
+

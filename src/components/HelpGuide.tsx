@@ -51,7 +51,7 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
             icon: <Rocket className="w-4 h-4" />,
             content: isVi ? (
                 <div className="space-y-2">
-                    <p><strong>ReizGit</strong> là công cụ quản lý Git và triển khai (deploy) ứng dụng dành cho lập trình viên. Ứng dụng giúp bạn:</p>
+                    <p><strong>ZenGit</strong> là công cụ quản lý Git và triển khai (deploy) ứng dụng dành cho lập trình viên. Ứng dụng giúp bạn:</p>
                     <ul className="list-disc pl-4 space-y-1">
                         <li>Quản lý <strong>nhánh (branch)</strong> — xem, chuyển, tạo, xóa, gộp nhánh</li>
                         <li>Xem <strong>lịch sử commit</strong> dạng danh sách hoặc đồ thị (graph)</li>
@@ -63,7 +63,7 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
                 </div>
             ) : isZh ? (
                 <div className="space-y-2">
-                    <p><strong>ReizGit</strong> 是一款面向开发者的 Git 管理和部署工具。功能包括：</p>
+                    <p><strong>ZenGit</strong> 是一款面向开发者的 Git 管理和部署工具。功能包括：</p>
                     <ul className="list-disc pl-4 space-y-1">
                         <li>管理<strong>分支 (branch)</strong>——查看、切换、创建、删除、合并</li>
                         <li>以列表或图表形式查看<strong>提交历史</strong></li>
@@ -74,7 +74,7 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
                 </div>
             ) : (
                 <div className="space-y-2">
-                    <p><strong>ReizGit</strong> is a Git management and deployment tool for developers. Features include:</p>
+                    <p><strong>ZenGit</strong> is a Git management and deployment tool for developers. Features include:</p>
                     <ul className="list-disc pl-4 space-y-1">
                         <li>Manage <strong>branches</strong> — view, checkout, create, delete, merge</li>
                         <li>View <strong>commit history</strong> in list or graph mode</li>
@@ -478,7 +478,7 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
                     <div className="flex items-center gap-2">
                         <span className="text-lg">📖</span>
                         <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                            {isVi ? 'Hướng dẫn sử dụng ReizGit' : isZh ? 'ReizGit 使用指南' : 'ReizGit User Guide'}
+                            {isVi ? 'Hướng dẫn sử dụng ZenGit' : isZh ? 'ZenGit 使用指南' : 'ZenGit User Guide'}
                         </span>
                     </div>
                     <button onClick={onClose} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-muted)' }}

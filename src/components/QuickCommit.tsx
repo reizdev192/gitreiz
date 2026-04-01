@@ -36,6 +36,11 @@ export function QuickCommit() {
 
     useEffect(() => { fetchFiles(); }, [fetchFiles]);
 
+    useEffect(() => {
+        setFiles([]);
+        setMessage('');
+    }, [project?.id]);
+
     if (!project || files.length === 0) return null;
 
     const stagedFiles = files.filter(f => f.staged);

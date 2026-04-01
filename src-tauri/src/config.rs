@@ -69,7 +69,7 @@ pub fn export_settings_cmd(app: AppHandle, file_path: String, password: String) 
 
     // Add export metadata
     config["_encrypted"] = serde_json::json!(true);
-    config["_app"] = serde_json::json!("ReizGit");
+    config["_app"] = serde_json::json!("ZenGit");
     config["_version"] = serde_json::json!("2.0");
 
     let output = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
@@ -84,14 +84,14 @@ pub fn import_settings_cmd(app: AppHandle, file_path: String, password: String) 
     let mut config: serde_json::Value =
         serde_json::from_str(&content).map_err(|e| format!("Invalid config file: {}", e))?;
 
-    // Must be a ReizGit export file
-    let is_reizgit = config
+    // Must be a ZenGit export file
+    let is_zengit = config
         .get("_app")
         .and_then(|v| v.as_str())
-        .map_or(false, |v| v == "ReizGit");
+        .map_or(false, |v| v == "ZenGit");
 
-    if !is_reizgit {
-        return Err("This is not a valid ReizGit settings file".to_string());
+    if !is_zengit {
+        return Err("This is not a valid ZenGit settings file".to_string());
     }
 
     // Decrypt sensitive fields if the file was encrypted

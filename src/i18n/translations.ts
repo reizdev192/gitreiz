@@ -35,6 +35,7 @@ const translations = {
     'git.rightClickActions': { en: 'Right-click for actions', vi: 'Nhấn chuột phải để thao tác', zh: '右键查看操作' },
     'git.loading': { en: 'Loading...', vi: 'Đang tải...', zh: '加载中...' },
     'git.noBranches': { en: 'No branches found', vi: 'Không tìm thấy nhánh', zh: '未找到分支' },
+    'git.globalActions': { en: 'Global Actions', vi: 'Hành động chung', zh: '全局操作' },
 
     // Context Menu
     'ctx.checkout': { en: 'Checkout', vi: 'Chuyển nhánh', zh: '切换分支' },
@@ -74,7 +75,7 @@ const translations = {
     'config.repoPath': { en: 'Repository Path (Absolute)', vi: 'Đường dẫn kho lưu trữ (tuyệt đối)', zh: '仓库路径（绝对路径）' },
     'config.environments': { en: 'Deployment Environments', vi: 'Môi trường triển khai', zh: '部署环境' },
     'config.addEnv': { en: 'Add Env', vi: 'Thêm MT', zh: '添加环境' },
-    'config.envName': { en: 'Env Name', vi: 'Tên MT', zh: '环境名' },
+    'config.envName': { en: 'Branch Name', vi: 'Tên nhánh (Branch)', zh: '分支名' },
     'config.tagFormat': { en: 'Tag Format', vi: 'Định dạng tag', zh: '标签格式' },
     'config.noEnvs': { en: 'No environments added yet.', vi: 'Chưa thêm môi trường nào.', zh: '暂未添加环境。' },
     'config.delete': { en: 'Delete Project', vi: 'Xóa dự án', zh: '删除项目' },

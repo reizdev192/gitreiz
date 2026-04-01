@@ -4,8 +4,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '../store/useProjectStore';
 import { useI18n } from '../i18n/useI18n';
 import { useConfirmStore } from '../store/useConfirmStore';
-import { GitCommitHorizontal, ChevronDown, Copy, Tag, GitBranch, RefreshCw, Loader2, List, GitGraph, User, Clock, Hash, GitFork, Search, X, Eye, Cherry } from 'lucide-react';
+import { GitCommitHorizontal, ChevronDown, Copy, Tag, GitBranch, RefreshCw, Loader2, List, GitGraph, User, Clock, Hash, GitFork, Search, X, Eye, Cherry, TerminalSquare } from 'lucide-react';
 import { DiffViewer } from './DiffViewer';
+import { useCustomActionsStore, type CustomAction } from '../store/useCustomActionsStore';
+import { ActionConfirmDialog } from './ActionConfirmDialog';
 
 
 interface CommitInfo {
@@ -150,11 +152,9 @@ function computeGraph(commits: CommitInfo[]): GraphNode[] {
 }
 
 export function CommitPanel() {
-    const projects = useProjectStore(s => s.projects);
-    const selectedProjectId = useProjectStore(s => s.selectedProjectId);
-    const gitStateVersion = useProjectStore(s => s.gitStateVersion);
-    const bumpGitState = useProjectStore(s => s.bumpGitState);
+    const { projects, selectedProjectId, gitStateVersion, bumpGitState, appendLog, openTerminalBar } = useProjectStore();
     const project = projects.find(p => p.id === selectedProjectId);
+    const { actions, loadActions } = useCustomActionsStore();
     const { t } = useI18n();
 
     const [commits, setCommits] = useState<CommitInfo[]>([]);
@@ -175,6 +175,9 @@ export function CommitPanel() {
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const searchInputRef = useRef<HTMLInputElement>(null);
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [pendingAction, setPendingAction] = useState<{ action: CustomAction, renderedScript: string } | null>(null);
+
+    useEffect(() => { loadActions(); }, [loadActions]);
 
 
     const handleSearchChange = (val: string) => {
@@ -261,6 +264,26 @@ export function CommitPanel() {
             bumpGitState();
         } catch (e: any) {
             alert(`Cherry-pick failed: ${e}`);
+        }
+    };
+
+    const handleExecuteCustomAction = async () => {
+        if (!pendingAction || !project) return;
+        const toRun = pendingAction;
+        setPendingAction(null);
+        setLoading(true);
+        appendLog(`[GIT] Executing custom action: ${toRun.action.name}\n`);
+        openTerminalBar();
+        try {
+            const result = await invoke<string>('execute_custom_action', { cwd: project.path, script: toRun.renderedScript });
+            appendLog(`[GIT] ${result}\n`);
+            bumpGitState();
+            fetchCommits();
+        } catch (e: any) {
+            appendLog(`[ERROR] Action failed: ${e}\n`);
+            alert(`Custom action failed: ${e}`);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -652,8 +675,24 @@ export function CommitPanel() {
                             { icon: <Copy className="w-3.5 h-3.5" />, label: t('commits.copyHash'), action: () => { copyHash(commitCtx.commit.hash); setCommitCtx(null); } },
                             { icon: <Eye className="w-3.5 h-3.5" />, label: t('diff.title'), action: () => { setDiffHash(commitCtx.commit.hash); setCommitCtx(null); } },
                             { icon: <Cherry className="w-3.5 h-3.5" style={{ color: '#ef4444' }} />, label: t('commits.cherryPick'), action: () => { setCommitCtx(null); handleCherryPick(commitCtx.commit.hash); }, danger: true },
-                        ].map((item, i) => (
-                            <button key={i} onClick={item.action}
+                            ...(actions.filter(a => a.context?.trim().toLowerCase() === 'commit').length > 0 ? [{ divider: true }] : []),
+                            ...actions.filter(a => a.context?.trim().toLowerCase() === 'commit').map(action => ({
+                                icon: <TerminalSquare className="w-3.5 h-3.5" />,
+                                label: action.name,
+                                action: () => {
+                                    setCommitCtx(null);
+                                    const script = action.script
+                                        .replace(/{TARGET_COMMIT}/g, commitCtx.commit.hash)
+                                        .replace(/{CURRENT_BRANCH}/g, currentBranch)
+                                        .replace(/{TARGET_BRANCH}/g, selectedBranch !== '__all__' && selectedBranch !== '__current__' ? selectedBranch : currentBranch)
+                                        .replace(/{REPO_PATH}/g, project!.path);
+                                    setPendingAction({ action, renderedScript: script });
+                                }
+                            }))
+                        ].map((item, i) => item.divider ? (
+                            <div key={`div-${i}`} style={{ borderTop: '1px solid var(--border-default)', margin: '2px 0' }} />
+                        ) : (
+                            <button key={i} onClick={(item as any).action}
                                 className="w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors text-left"
                                 style={{ color: (item as any).danger ? '#ef4444' : 'var(--text-primary)' }}
                                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
@@ -665,6 +704,16 @@ export function CommitPanel() {
                     </div>
                 </>,
                 document.body
+            )}
+
+            {/* Custom Action Confirm Dialog */}
+            {pendingAction && (
+                <ActionConfirmDialog
+                    action={pendingAction.action}
+                    renderedScript={pendingAction.renderedScript}
+                    onConfirm={handleExecuteCustomAction}
+                    onClose={() => setPendingAction(null)}
+                />
             )}
 
             {/* DiffViewer Modal */}

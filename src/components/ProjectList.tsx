@@ -12,8 +12,8 @@ export function ProjectList() {
         <div className="w-64 flex flex-col h-full overflow-hidden" style={{ backgroundColor: 'var(--bg-sidebar)', borderRight: '1px solid var(--border-default)' }}>
             <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-default)' }}>
                 <div className="flex items-center gap-2.5 font-medium font-mono" style={{ color: 'var(--text-accent)' }}>
-                    <img src="/logo.png" alt="ReizGit" className="w-8 h-8 rounded-lg object-contain filter drop-shadow-sm" />
-                    <span className="text-xl font-bold tracking-wider">ReizGit</span>
+                    <img src="/logo.png" alt="ZenGit" className="w-8 h-8 rounded-lg object-contain filter drop-shadow-sm" />
+                    <span className="text-xl font-bold tracking-wider">ZenGit</span>
                 </div>
                 <div className="flex items-center gap-1">
                     <button
