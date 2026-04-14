@@ -4,7 +4,8 @@ import { useI18n } from '../i18n/useI18n';
 import { X, Plus, Trash2, Edit2, Check, TerminalSquare, Variable } from 'lucide-react';
 import { useEscClose } from '../hooks/useEscClose';
 import { useConfirmStore } from '../store/useConfirmStore';
-import { SyntaxEditor } from './SyntaxEditor';
+import { GraphBuilder } from './GraphBuilder';
+
 
 // Mapping variables by context
 const CONTEXT_VARIABLES: Record<string, { label: string, title: string }[]> = {
@@ -12,16 +13,22 @@ const CONTEXT_VARIABLES: Record<string, { label: string, title: string }[]> = {
         { label: '{TARGET_COMMIT}', title: 'The commit hash you right-clicked on.' },
         { label: '{TARGET_BRANCH}', title: 'The branch of the commit (if any).' },
         { label: '{CURRENT_BRANCH}', title: 'The checked out branch globally.' },
-        { label: '{REPO_PATH}', title: 'Absolute repository path.' }
+        { label: '{REPO_PATH}', title: 'Absolute repository path.' },
+        { label: '{NEXT_TAG}', title: 'The dynamically calculated next tag (e.g. v1.0.2).' },
+        { label: '{LATEST_TAG}', title: 'The current latest tag (e.g. v1.0.1).' }
     ],
     'branch': [
         { label: '{TARGET_BRANCH}', title: 'The branch you right-clicked on.' },
         { label: '{CURRENT_BRANCH}', title: 'The checked out branch globally.' },
-        { label: '{REPO_PATH}', title: 'Absolute repository path.' }
+        { label: '{REPO_PATH}', title: 'Absolute repository path.' },
+        { label: '{NEXT_TAG}', title: 'The dynamically calculated next tag (e.g. v1.0.2).' },
+        { label: '{LATEST_TAG}', title: 'The current latest tag (e.g. v1.0.1).' }
     ],
     'global': [
         { label: '{CURRENT_BRANCH}', title: 'The checked out branch globally.' },
-        { label: '{REPO_PATH}', title: 'Absolute repository path.' }
+        { label: '{REPO_PATH}', title: 'Absolute repository path.' },
+        { label: '{NEXT_TAG}', title: 'The dynamically calculated next tag (e.g. v1.0.2).' },
+        { label: '{LATEST_TAG}', title: 'The current latest tag (e.g. v1.0.1).' }
     ]
 };
 
@@ -35,6 +42,7 @@ export function CustomActionsBuilder({ onClose }: CustomActionsBuilderProps) {
     useEscClose(onClose);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<Partial<CustomAction> | null>(null);
+    const [isWorkflowFullscreen, setIsWorkflowFullscreen] = useState(false);
     const editorRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
@@ -45,9 +53,10 @@ export function CustomActionsBuilder({ onClose }: CustomActionsBuilderProps) {
         const newId = crypto.randomUUID();
         const empty: CustomAction = {
             id: newId,
+            type: 'graph',
             name: 'New Action',
             description: '',
-            script: 'echo "Running custom action on {CURRENT_BRANCH}"\n',
+            script: '{"nodes":[],"edges":[]}',
             context: 'global'
         };
         addAction(empty);
@@ -154,23 +163,25 @@ export function CustomActionsBuilder({ onClose }: CustomActionsBuilderProps) {
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <label className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-secondary)] block mb-2">Triggers On (Context)</label>
-                                            <div className="flex items-center gap-6 bg-[var(--bg-input)] p-3 rounded border border-[var(--border-default)]">
-                                                {(['branch', 'commit', 'global'] as const).map(ctx => (
-                                                    <label key={ctx} className="flex items-center gap-2 cursor-pointer hover:text-[var(--text-accent)] transition-colors text-xs text-[var(--text-secondary)] font-medium">
-                                                        <input 
-                                                            type="radio" 
-                                                            name={`context-${action.id}`} 
-                                                            value={ctx}
-                                                            checked={(editForm?.context || 'global') === ctx}
-                                                            onChange={() => setEditForm(prev => prev ? { ...prev, context: ctx } : null)}
-                                                            className="w-4 h-4 cursor-pointer"
-                                                            style={{ accentColor: 'var(--accent)' }}
-                                                        />
-                                                        <span className="capitalize">{ctx}</span>
-                                                    </label>
-                                                ))}
+                                        <div className="grid grid-cols-1 gap-4">
+                                            <div>
+                                                <label className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-secondary)] block mb-2">Triggers On (Context)</label>
+                                                <div className="flex items-center gap-6 bg-[var(--bg-input)] p-3 rounded border border-[var(--border-default)]">
+                                                    {(['branch', 'commit', 'global'] as const).map(ctx => (
+                                                        <label key={ctx} className="flex items-center gap-2 cursor-pointer hover:text-[var(--text-accent)] transition-colors text-xs text-[var(--text-secondary)] font-medium">
+                                                            <input 
+                                                                type="radio" 
+                                                                name={`context-${action.id}`} 
+                                                                value={ctx}
+                                                                checked={(editForm?.context || 'global') === ctx}
+                                                                onChange={() => setEditForm(prev => prev ? { ...prev, context: ctx } : null)}
+                                                                className="w-4 h-4 cursor-pointer"
+                                                                style={{ accentColor: 'var(--accent)' }}
+                                                            />
+                                                            <span className="capitalize">{ctx}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
 
@@ -194,15 +205,16 @@ export function CustomActionsBuilder({ onClose }: CustomActionsBuilderProps) {
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col h-[280px]">
-                                            <label className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-secondary)] block mb-2">Shell Script</label>
-                                            <SyntaxEditor
-                                                editorRef={editorRef}
-                                                value={editForm?.script || ''}
-                                                onChange={(script: string) => setEditForm(prev => prev ? { ...prev, script } : null)}
-                                                language="javascript"
-                                                placeholder={`echo "Hello {CURRENT_BRANCH}"`}
-                                            />
+                                        <div className="flex flex-col items-center justify-center mt-4 p-8 bg-[var(--bg-card)] rounded border border-dashed border-[var(--border-default)]">
+                                            <Variable className="w-12 h-12 text-[var(--text-muted)] mb-4" />
+                                            <p className="text-sm text-[var(--text-secondary)] mb-4">Mở N8N Graph Builder để kéo thả workflow cho action này.</p>
+                                            <button 
+                                                onClick={() => setIsWorkflowFullscreen(true)}
+                                                className="btn btn-sm text-white shadow hover:brightness-110 flex items-center gap-2"
+                                                style={{ backgroundColor: 'var(--accent)' }}
+                                            >
+                                                <TerminalSquare className="w-4 h-4" /> Open Workflow Builder
+                                            </button>
                                         </div>
 
                                         <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-default)]">
@@ -222,6 +234,16 @@ export function CustomActionsBuilder({ onClose }: CustomActionsBuilderProps) {
                                                 <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded text-[var(--text-accent)] border" style={{ backgroundColor: 'var(--accent-muted)', borderColor: 'var(--accent)' }}>
                                                     {action.context || 'global'}
                                                 </span>
+                                                {action.type === 'composite' && (
+                                                    <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded text-green-400 border border-green-500/30 bg-green-500/10">
+                                                        yaml
+                                                    </span>
+                                                )}
+                                                {action.type === 'graph' && (
+                                                    <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded text-fuchsia-400 border border-fuchsia-500/30 bg-fuchsia-500/10">
+                                                        n8n graph
+                                                    </span>
+                                                )}
                                             </h3>
                                             {action.description && <p className="text-xs text-[var(--text-secondary)] truncate">{action.description}</p>}
                                             <div className="bg-[#0d1117] p-3 rounded border border-[var(--border-subtle)]">
@@ -245,6 +267,30 @@ export function CustomActionsBuilder({ onClose }: CustomActionsBuilderProps) {
                     </div>
                 </div>
             </div>
+            
+            {/* Fullscreen GraphBuilder Overlay */}
+            {isWorkflowFullscreen && (
+                <div className="fixed inset-0 z-[100] flex flex-col bg-[var(--bg-panel)] animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between items-center px-4 py-3 border-b border-[var(--border-default)] bg-[var(--bg-sidebar)] shrink-0 shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <TerminalSquare className="w-5 h-5 text-[var(--text-accent)]" />
+                            <h2 className="font-bold text-[var(--text-primary)] font-mono uppercase tracking-wider text-sm">{editForm?.name || 'Workflow Builder'}</h2>
+                            <span className="text-[10px] bg-[var(--bg-input)] px-2 py-0.5 rounded text-[var(--text-secondary)] ml-2">Luôn tự động lưu</span>
+                        </div>
+                        <button onClick={() => setIsWorkflowFullscreen(false)} className="btn btn-sm flex items-center gap-2 text-white shadow-md hover:brightness-110" style={{ backgroundColor: 'var(--accent)', border: 'none' }}>
+                            <Check className="w-4 h-4" /> Quay Lại
+                        </button>
+                    </div>
+                    <div className="flex-1 w-full bg-[var(--bg-app)] relative p-2">
+                        {(editForm?.type === 'graph' || !editForm?.type || editForm?.type === 'script' || editForm?.type === 'composite') && (
+                            <GraphBuilder
+                                initialScript={editForm?.script || ''}
+                                onChange={(script: string) => setEditForm(prev => prev ? { ...prev, script } : null)}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

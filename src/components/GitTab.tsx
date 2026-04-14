@@ -13,6 +13,7 @@ import { ConflictResolver } from './ConflictResolver';
 import { dispatchWebhook } from '../utils/webhookDispatcher';
 import { useCustomActionsStore, type CustomAction } from '../store/useCustomActionsStore';
 import { ActionConfirmDialog } from './ActionConfirmDialog';
+import { runCompositeWorkflow, runGraphWorkflow } from '../utils/compositeRunner';
 import { GitBranch, AlertTriangle, CheckCircle, RefreshCw, Folder, ChevronRight, ChevronDown, Rocket, Copy, Tag, Trash2, GitBranchPlus, Archive, ArchiveRestore, ArrowUp, ArrowDown, Download, GitMerge, Upload, Shield, FolderGit2, Link as LinkIcon, Star, TerminalSquare } from 'lucide-react';
 
 interface TreeNode {
@@ -54,7 +55,7 @@ export function GitTab() {
     const [activeWorktrees, setActiveWorktrees] = useState<string[]>([]);
     const [isMergeConflict, setIsMergeConflict] = useState(false);
     const [showConflictResolver, setShowConflictResolver] = useState(false);
-    const [pendingAction, setPendingAction] = useState<{ action: CustomAction, renderedScript: string } | null>(null);
+    const [pendingAction, setPendingAction] = useState<{ action: CustomAction, renderedScript: string, targetBranch: string } | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -344,13 +345,22 @@ export function GitTab() {
         appendLog(`[GIT] Executing custom action: ${toRun.action.name}\n`);
         openTerminalBar();
         try {
-            const result = await invoke<string>('execute_custom_action', { cwd: project.path, script: toRun.renderedScript });
-            appendLog(`[GIT] ${result}\n`);
+            if (toRun.action.type === 'composite') {
+                await runCompositeWorkflow(toRun.renderedScript, project, currentBranch, toRun.targetBranch, appendLog);
+                appendLog(`[GIT] Action ${toRun.action.name} completed successfully.\n`);
+            } else if (toRun.action.type === 'graph') {
+                await runGraphWorkflow(toRun.renderedScript, project, currentBranch, toRun.targetBranch, appendLog);
+                appendLog(`[GIT] Action ${toRun.action.name} completed successfully.\n`);
+            } else {
+                const result = await invoke<string>('execute_custom_action', { cwd: project.path, script: toRun.renderedScript });
+                appendLog(`[GIT] ${result}\n`);
+            }
             showMsg(`Executed: ${toRun.action.name}`);
             await refreshGitState();
         } catch (e: any) {
             appendLog(`[ERROR] Action failed: ${e}\n`);
             showMsg(`Action failed: ${e}`, true);
+        } finally {
             setIsLoading(false);
         }
     };
@@ -603,7 +613,7 @@ export function GitTab() {
                             .replace(/{CURRENT_BRANCH}/g, currentBranch)
                             .replace(/{REPO_PATH}/g, project!.path)
                             .replace(/{TARGET_COMMIT}/g, '');
-                        setPendingAction({ action, renderedScript: script });
+                        setPendingAction({ action, renderedScript: script, targetBranch: branchClean });
                     }
                 });
                 first = false;
@@ -626,7 +636,7 @@ export function GitTab() {
                     .replace(/{REPO_PATH}/g, project!.path)
                     .replace(/{TARGET_BRANCH}/g, '')
                     .replace(/{TARGET_COMMIT}/g, '');
-                setPendingAction({ action, renderedScript: script });
+                setPendingAction({ action, renderedScript: script, targetBranch: currentBranch });
             }
         }));
     };

@@ -7,12 +7,18 @@ fn default_context() -> String {
     "global".to_string()
 }
 
+fn default_type() -> String {
+    "script".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomAction {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
     pub script: String,
+    #[serde(default = "default_type", rename = "type")] // Map to `type` in JSON to be clean
+    pub action_type: String,
     #[serde(default = "default_context")]
     pub context: String,
 }

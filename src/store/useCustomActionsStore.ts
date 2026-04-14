@@ -5,6 +5,7 @@ export type ActionContext = 'branch' | 'commit' | 'global';
 
 export interface CustomAction {
     id: string;
+    type?: 'script' | 'composite' | 'graph';
     name: string;
     description?: string;
     script: string;

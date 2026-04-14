@@ -3,6 +3,7 @@ import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 import bash from 'highlight.js/lib/languages/bash';
 import powershell from 'highlight.js/lib/languages/powershell';
+import yaml from 'highlight.js/lib/languages/yaml';
 // Import a single dark theme to keep the editor cleanly visible in both light and dark mode OS
 import 'highlight.js/styles/atom-one-dark.css';
 
@@ -10,12 +11,13 @@ import 'highlight.js/styles/atom-one-dark.css';
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('bash', bash);
 hljs.registerLanguage('powershell', powershell);
+hljs.registerLanguage('yaml', yaml);
 
 interface SyntaxEditorProps {
     value: string;
     onChange: (val: string) => void;
     editorRef?: React.RefObject<HTMLTextAreaElement | null>;
-    language?: 'javascript' | 'bash' | 'powershell';
+    language?: 'javascript' | 'bash' | 'powershell' | 'yaml';
     placeholder?: string;
     className?: string;
 }

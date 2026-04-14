@@ -8,6 +8,7 @@ import { GitCommitHorizontal, ChevronDown, Copy, Tag, GitBranch, RefreshCw, Load
 import { DiffViewer } from './DiffViewer';
 import { useCustomActionsStore, type CustomAction } from '../store/useCustomActionsStore';
 import { ActionConfirmDialog } from './ActionConfirmDialog';
+import { runCompositeWorkflow, runGraphWorkflow } from '../utils/compositeRunner';
 
 
 interface CommitInfo {
@@ -175,7 +176,7 @@ export function CommitPanel() {
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const searchInputRef = useRef<HTMLInputElement>(null);
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [pendingAction, setPendingAction] = useState<{ action: CustomAction, renderedScript: string } | null>(null);
+    const [pendingAction, setPendingAction] = useState<{ action: CustomAction, renderedScript: string, targetBranch: string } | null>(null);
 
     useEffect(() => { loadActions(); }, [loadActions]);
 
@@ -275,8 +276,16 @@ export function CommitPanel() {
         appendLog(`[GIT] Executing custom action: ${toRun.action.name}\n`);
         openTerminalBar();
         try {
-            const result = await invoke<string>('execute_custom_action', { cwd: project.path, script: toRun.renderedScript });
-            appendLog(`[GIT] ${result}\n`);
+            if (toRun.action.type === 'composite') {
+                await runCompositeWorkflow(toRun.renderedScript, project, currentBranch, toRun.targetBranch, appendLog);
+                appendLog(`[GIT] Action ${toRun.action.name} completed successfully.\n`);
+            } else if (toRun.action.type === 'graph') {
+                await runGraphWorkflow(toRun.renderedScript, project, currentBranch, toRun.targetBranch, appendLog);
+                appendLog(`[GIT] Action ${toRun.action.name} completed successfully.\n`);
+            } else {
+                const result = await invoke<string>('execute_custom_action', { cwd: project.path, script: toRun.renderedScript });
+                appendLog(`[GIT] ${result}\n`);
+            }
             bumpGitState();
             fetchCommits();
         } catch (e: any) {
@@ -681,12 +690,13 @@ export function CommitPanel() {
                                 label: action.name,
                                 action: () => {
                                     setCommitCtx(null);
+                                    const targetBranch = selectedBranch !== '__all__' && selectedBranch !== '__current__' ? selectedBranch : currentBranch;
                                     const script = action.script
                                         .replace(/{TARGET_COMMIT}/g, commitCtx.commit.hash)
                                         .replace(/{CURRENT_BRANCH}/g, currentBranch)
-                                        .replace(/{TARGET_BRANCH}/g, selectedBranch !== '__all__' && selectedBranch !== '__current__' ? selectedBranch : currentBranch)
+                                        .replace(/{TARGET_BRANCH}/g, targetBranch)
                                         .replace(/{REPO_PATH}/g, project!.path);
-                                    setPendingAction({ action, renderedScript: script });
+                                    setPendingAction({ action, renderedScript: script, targetBranch });
                                 }
                             }))
                         ].map((item, i) => item.divider ? (
